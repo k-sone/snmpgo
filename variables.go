@@ -1,0 +1,608 @@
+package snmpgo
+
+import (
+	"encoding/asn1"
+	"errors"
+	"fmt"
+	"math"
+	"math/big"
+	"strconv"
+	"strings"
+)
+
+type Variable interface {
+	BigInt() (*big.Int, error)
+	String() string
+	Type() string
+	Marshal() ([]byte, error)
+	Unmarshal([]byte) (rest []byte, err error)
+}
+
+type Integer struct {
+	Value int32
+}
+
+func (v *Integer) BigInt() (*big.Int, error) {
+	return big.NewInt(int64(v.Value)), nil
+}
+
+func (v *Integer) String() string {
+	return strconv.FormatInt(int64(v.Value), 10)
+}
+
+func (v *Integer) Type() string {
+	return "Integer"
+}
+
+func (v *Integer) Marshal() ([]byte, error) {
+	return asn1.Marshal(v.Value)
+}
+
+func (v *Integer) Unmarshal(b []byte) (rest []byte, err error) {
+	return asn1.Unmarshal(b, &v.Value)
+}
+
+func NewInteger(i int32) *Integer {
+	return &Integer{i}
+}
+
+type OctetString struct {
+	Value []byte
+}
+
+func (v *OctetString) BigInt() (*big.Int, error) {
+	return nil, errors.New("Unsupported operation")
+}
+
+func (v *OctetString) String() string {
+	for _, c := range v.Value {
+		if !strconv.IsPrint(rune(c)) {
+			return toHexStr(v.Value, ":")
+		}
+	}
+	return string(v.Value)
+}
+
+func (v *OctetString) Type() string {
+	return "OctetString"
+}
+
+func (v *OctetString) Marshal() ([]byte, error) {
+	return asn1.Marshal(v.Value)
+}
+
+func (v *OctetString) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalString(b, tagOctetString, func(s []byte) { v.Value = s })
+}
+
+func NewOctetString(s string) *OctetString {
+	return &OctetString{[]byte(s)}
+}
+
+type Null struct{}
+
+func (v *Null) BigInt() (*big.Int, error) {
+	return nil, errors.New("Unsupported operation")
+}
+
+func (v *Null) String() string {
+	return ""
+}
+
+func (v *Null) Type() string {
+	return "Null"
+}
+
+func (v *Null) Marshal() ([]byte, error) {
+	return []byte{tagNull, 0}, nil
+}
+
+func (v *Null) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalEmpty(b, tagNull)
+}
+
+func NewNull() *Null {
+	return &Null{}
+}
+
+type Oid struct {
+	Value asn1.ObjectIdentifier
+}
+
+func (v *Oid) BigInt() (*big.Int, error) {
+	return nil, errors.New("Unsupported operation")
+}
+
+func (v *Oid) String() string {
+	return v.Value.String()
+}
+
+func (v *Oid) Type() string {
+	return "Oid"
+}
+
+func (v *Oid) Marshal() ([]byte, error) {
+	return asn1.Marshal(v.Value)
+}
+
+func (v *Oid) Unmarshal(b []byte) (rest []byte, err error) {
+	var i asn1.ObjectIdentifier
+	rest, err = asn1.Unmarshal(b, &i)
+	if err == nil {
+		v.Value = i
+	}
+	return
+}
+
+func (v *Oid) Contains(o *Oid) bool {
+	if o == nil || len(v.Value) < len(o.Value) {
+		return false
+	}
+	for i := 0; i < len(o.Value); i++ {
+		if v.Value[i] != o.Value[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (v *Oid) Compare(o *Oid) int {
+	if o != nil {
+		vl := len(v.Value)
+		ol := len(o.Value)
+		for i := 0; i < vl; i++ {
+			if ol <= i || v.Value[i] > o.Value[i] {
+				return 1
+			} else if v.Value[i] < o.Value[i] {
+				return -1
+			}
+		}
+		if ol == vl {
+			return 0
+		}
+	}
+	return -1
+}
+
+func (v *Oid) Equal(o *Oid) bool {
+	if o == nil {
+		return false
+	}
+	return v.Value.Equal(o.Value)
+}
+
+func NewOid(s string) (oid *Oid, err error) {
+	subids := strings.Split(s, ".")
+
+	// leading dot
+	if subids[0] == "" {
+		subids = subids[1:]
+	}
+
+	// RFC2578 Section 3.5
+	if len(subids) > 128 {
+		return nil, ArgumentError{
+			Value:   s,
+			Message: "The sub-identifiers in an OID is up to 128",
+		}
+	}
+
+	o := make(asn1.ObjectIdentifier, len(subids))
+	for i, v := range subids {
+		o[i], err = strconv.Atoi(v)
+		if err != nil || o[i] < 0 || o[i] > math.MaxUint32 {
+			return nil, ArgumentError{
+				Value:   s,
+				Message: fmt.Sprintf("The sub-identifiers is range %d..%d", 0, math.MaxUint32),
+			}
+		}
+	}
+
+	if len(o) > 0 && o[0] > 2 {
+		return nil, ArgumentError{
+			Value:   s,
+			Message: "The first sub-identifier is range 0..2",
+		}
+	}
+
+	// ISO/IEC 8825 Section 8.19.4
+	if len(o) < 2 {
+		return nil, ArgumentError{
+			Value:   s,
+			Message: "The first and second sub-identifier is required",
+		}
+	}
+
+	if o[0] < 2 && o[1] >= 40 {
+		return nil, ArgumentError{
+			Value:   s,
+			Message: "The second sub-identifier is range 0..39",
+		}
+	}
+
+	return &Oid{o}, nil
+}
+
+func NewOids(s []string) (oids []Oid, err error) {
+	for _, l := range s {
+		o, e := NewOid(l)
+		if e != nil {
+			return nil, e
+		}
+		oids = append(oids, *o)
+	}
+	return
+}
+
+type Ipaddress struct {
+	OctetString
+}
+
+func (v *Ipaddress) BigInt() (*big.Int, error) {
+	var t uint32
+	for i, b := range v.Value {
+		t = t + (uint32(b) << uint(24-8*i))
+	}
+	return big.NewInt(int64(t)), nil
+}
+
+func (v *Ipaddress) String() string {
+	s := make([]string, len(v.Value))
+	for i, b := range v.Value {
+		s[i] = strconv.Itoa(int(b))
+	}
+	return strings.Join(s, ".")
+}
+
+func (v *Ipaddress) Type() string {
+	return "Ipaddress"
+}
+
+func (v *Ipaddress) Marshal() ([]byte, error) {
+	b, err := asn1.Marshal(v.Value)
+	if err == nil {
+		b[0] = tagIpaddress
+	}
+	return b, err
+}
+
+func (v *Ipaddress) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalString(b, tagIpaddress, func(s []byte) { v.Value = s })
+}
+
+func NewIpaddress(a, b, c, d byte) *Ipaddress {
+	return &Ipaddress{OctetString{[]byte{a, b, c, d}}}
+}
+
+type Counter32 struct {
+	Value uint32
+}
+
+func (v *Counter32) BigInt() (*big.Int, error) {
+	return big.NewInt(int64(v.Value)), nil
+}
+
+func (v *Counter32) String() string {
+	return strconv.FormatInt(int64(v.Value), 10)
+}
+
+func (v *Counter32) Type() string {
+	return "Counter32"
+}
+
+func (v *Counter32) Marshal() ([]byte, error) {
+	b, err := asn1.Marshal(int64(v.Value))
+	if err == nil {
+		b[0] = tagCounter32
+	}
+	return b, err
+}
+
+func (v *Counter32) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalInt(b, tagCounter32, func(s *big.Int) { v.Value = uint32(s.Int64()) })
+}
+
+func NewCounter32(i uint32) *Counter32 {
+	return &Counter32{i}
+}
+
+type Gauge32 struct {
+	Counter32
+}
+
+func (v *Gauge32) Type() string {
+	return "Gauge32"
+}
+
+func (v *Gauge32) Marshal() ([]byte, error) {
+	b, err := asn1.Marshal(int64(v.Value))
+	if err == nil {
+		b[0] = tagGauge32
+	}
+	return b, err
+}
+
+func (v *Gauge32) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalInt(b, tagGauge32, func(s *big.Int) { v.Value = uint32(s.Int64()) })
+}
+
+func NewGauge32(i uint32) *Gauge32 {
+	return &Gauge32{Counter32{i}}
+}
+
+type TimeTicks struct {
+	Counter32
+}
+
+func (v *TimeTicks) Type() string {
+	return "TimeTicks"
+}
+
+func (v *TimeTicks) Marshal() ([]byte, error) {
+	b, err := asn1.Marshal(int64(v.Value))
+	if err == nil {
+		b[0] = tagTimeTicks
+	}
+	return b, err
+}
+
+func (v *TimeTicks) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalInt(b, tagTimeTicks, func(s *big.Int) { v.Value = uint32(s.Int64()) })
+}
+
+func NewTimeTicks(i uint32) *TimeTicks {
+	return &TimeTicks{Counter32{i}}
+}
+
+type Opaque struct {
+	OctetString
+}
+
+func (v *Opaque) String() string {
+	return toHexStr(v.Value, ":")
+}
+
+func (v *Opaque) Type() string {
+	return "Opaque"
+}
+
+func (v *Opaque) Marshal() ([]byte, error) {
+	b, err := asn1.Marshal(v.Value)
+	if err == nil {
+		b[0] = tagOpaque
+	}
+	return b, err
+}
+
+func (v *Opaque) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalString(b, tagOpaque, func(s []byte) { v.Value = s })
+}
+
+func NewOpaque(b []byte) *Opaque {
+	return &Opaque{OctetString{b}}
+}
+
+type Counter64 struct {
+	Value uint64
+}
+
+func (v *Counter64) BigInt() (*big.Int, error) {
+	return big.NewInt(0).SetUint64(v.Value), nil
+}
+
+func (v *Counter64) String() string {
+	return strconv.FormatUint(v.Value, 10)
+}
+
+func (v *Counter64) Type() string {
+	return "Counter64"
+}
+
+func (v *Counter64) Marshal() ([]byte, error) {
+	i := big.NewInt(0).SetUint64(v.Value)
+	b, err := asn1.Marshal(i)
+	if err == nil {
+		b[0] = tagCounter64
+	}
+	return b, err
+}
+
+func (v *Counter64) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalInt(b, tagCounter64, func(s *big.Int) { v.Value = s.Uint64() })
+}
+
+func NewCounter64(i uint64) *Counter64 {
+	return &Counter64{i}
+}
+
+type NoSucheObject struct {
+	Null
+}
+
+func (v *NoSucheObject) Type() string {
+	return "NoSucheObject"
+}
+
+func (v *NoSucheObject) Marshal() ([]byte, error) {
+	return []byte{tagNoSucheObject, 0}, nil
+}
+
+func (v *NoSucheObject) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalEmpty(b, tagNoSucheObject)
+}
+
+func NewNoSucheObject() *NoSucheObject {
+	return &NoSucheObject{Null{}}
+}
+
+type NoSucheInstance struct {
+	Null
+}
+
+func (v *NoSucheInstance) Type() string {
+	return "NoSucheInstance"
+}
+
+func (v *NoSucheInstance) Marshal() ([]byte, error) {
+	return []byte{tagNoSucheInstance, 0}, nil
+}
+
+func (v *NoSucheInstance) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalEmpty(b, tagNoSucheInstance)
+}
+
+func NewNoSucheInstance() *NoSucheInstance {
+	return &NoSucheInstance{Null{}}
+}
+
+type EndOfMibView struct {
+	Null
+}
+
+func (v *EndOfMibView) Type() string {
+	return "EndOfMibView"
+}
+
+func (v *EndOfMibView) Marshal() ([]byte, error) {
+	return []byte{tagEndOfMibView, 0}, nil
+}
+
+func (v *EndOfMibView) Unmarshal(b []byte) (rest []byte, err error) {
+	return unmarshalEmpty(b, tagEndOfMibView)
+}
+
+func NewEndOfMibView() *EndOfMibView {
+	return &EndOfMibView{Null{}}
+}
+
+func newOidWithoutError(s string) *Oid {
+	oid, _ := NewOid(s)
+	return oid
+}
+
+func unmarshalVariable(b []byte) (v Variable, rest []byte, err error) {
+	var raw asn1.RawValue
+	rest, err = asn1.Unmarshal(b, &raw)
+	if err != nil {
+		return
+	}
+
+	switch raw.Class {
+	case classUniversal:
+		switch raw.Tag {
+		case tagInteger:
+			var u Integer
+			v = &u
+		case tagOctetString:
+			var u OctetString
+			v = &u
+		case tagNull:
+			var u Null
+			v = &u
+		case tagObjectIdentifier:
+			var u Oid
+			v = &u
+		}
+	case classApplication:
+		switch raw.Tag {
+		case tagIpaddress & tagMask:
+			var u Ipaddress
+			v = &u
+		case tagCounter32 & tagMask:
+			var u Counter32
+			v = &u
+		case tagGauge32 & tagMask:
+			var u Gauge32
+			v = &u
+		case tagTimeTicks & tagMask:
+			var u TimeTicks
+			v = &u
+		case tagOpaque & tagMask:
+			var u Opaque
+			v = &u
+		case tagCounter64 & tagMask:
+			var u Counter64
+			v = &u
+		}
+	case classContextSpecific:
+		switch raw.Tag {
+		case tagNoSucheObject & tagMask:
+			var u NoSucheObject
+			v = &u
+		case tagNoSucheInstance & tagMask:
+			var u NoSucheInstance
+			v = &u
+		case tagEndOfMibView & tagMask:
+			var u EndOfMibView
+			v = &u
+		}
+	}
+
+	if v != nil {
+		rest, err = v.Unmarshal(b)
+		if err == nil {
+			return
+		}
+	} else {
+		err = asn1.StructuralError{fmt.Sprintf(
+			"Unknown ASN.1 object : %s", toHexStr(b, " "))}
+	}
+
+	return nil, nil, err
+}
+
+func validateUnmarshal(b []byte, tag byte) error {
+	if len(b) < 1 {
+		return asn1.StructuralError{"No bytes"}
+	}
+	if b[0] != tag {
+		return asn1.StructuralError{fmt.Sprintf(
+			"Invalid ASN.1 object - expected [%02x], actual [%02x] : %s",
+			tag, b[0], toHexStr(b, " "))}
+	}
+	return nil
+}
+
+func unmarshalEmpty(b []byte, tag byte) (rest []byte, err error) {
+	err = validateUnmarshal(b, tag)
+	if err != nil {
+		return nil, err
+	}
+
+	var raw asn1.RawValue
+	return asn1.Unmarshal(b, &raw)
+}
+
+func unmarshalInt(b []byte, tag byte, setter func(*big.Int)) (rest []byte, err error) {
+	err = validateUnmarshal(b, tag)
+	if err != nil {
+		return nil, err
+	}
+
+	temp := b[0]
+	b[0] = tagInteger
+	var i *big.Int
+	rest, err = asn1.Unmarshal(b, &i)
+	if err == nil {
+		setter(i)
+	}
+	b[0] = temp
+	return
+}
+
+func unmarshalString(b []byte, tag byte, setter func([]byte)) (rest []byte, err error) {
+	err = validateUnmarshal(b, tag)
+	if err != nil {
+		return nil, err
+	}
+
+	temp := b[0]
+	b[0] = tagOctetString
+	var s []byte
+	rest, err = asn1.Unmarshal(b, &s)
+	if err == nil {
+		setter(s)
+	}
+	b[0] = temp
+	return
+}
