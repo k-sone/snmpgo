@@ -81,7 +81,7 @@ func main() {
     fmt.Println(pdu.VarBinds())
 
     // select a VarBind
-    fmt.Println(pdu.VarBinds().MatchOid(&oids[0]))
+    fmt.Println(pdu.VarBinds().MatchOid(oids[0]))
 }
 ```
 

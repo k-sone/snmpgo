@@ -373,10 +373,10 @@ func NewPdu(ver SNMPVersion, t PduType) (pdu Pdu) {
 	return
 }
 
-func NewPduWithOids(ver SNMPVersion, t PduType, oids []Oid) (pdu Pdu) {
+func NewPduWithOids(ver SNMPVersion, t PduType, oids []*Oid) (pdu Pdu) {
 	pdu = NewPdu(ver, t)
-	for i := 0; i < len(oids); i++ {
-		pdu.AppendVarBind(&oids[i], NewNull())
+	for _, o := range oids {
+		pdu.AppendVarBind(o, NewNull())
 	}
 	return
 }

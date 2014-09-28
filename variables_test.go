@@ -192,18 +192,18 @@ func TestOidOperation(t *testing.T) {
 	oids, _ := snmpgo.NewOids([]string{"1.2.3.4", "1.2.3.4.5.6.7",
 		"1.2.3.4.5.6.7.8", "1.1.3.4", "1.3.3.4"})
 
-	if !oid.Contains(&oids[0]) || !oid.Contains(&oids[1]) || oid.Contains(&oids[2]) ||
-		oid.Contains(&oids[3]) || oid.Contains(&oids[4]) {
+	if !oid.Contains(oids[0]) || !oid.Contains(oids[1]) || oid.Contains(oids[2]) ||
+		oid.Contains(oids[3]) || oid.Contains(oids[4]) {
 		t.Errorf("Failed to Contains()")
 	}
 
-	if oid.Compare(&oids[0]) != 1 || oid.Compare(&oids[1]) != 0 || oid.Compare(&oids[2]) != -1 ||
-		oid.Compare(&oids[3]) != 1 || oid.Compare(&oids[4]) != -1 {
+	if oid.Compare(oids[0]) != 1 || oid.Compare(oids[1]) != 0 || oid.Compare(oids[2]) != -1 ||
+		oid.Compare(oids[3]) != 1 || oid.Compare(oids[4]) != -1 {
 		t.Errorf("Failed to Compare()")
 	}
 
-	if oid.Equal(&oids[0]) || !oid.Equal(&oids[1]) || oid.Equal(&oids[2]) ||
-		oid.Equal(&oids[3]) || oid.Equal(&oids[4]) {
+	if oid.Equal(oids[0]) || !oid.Equal(oids[1]) || oid.Equal(oids[2]) ||
+		oid.Equal(oids[3]) || oid.Equal(oids[4]) {
 		t.Errorf("Failed to Contains()")
 	}
 }

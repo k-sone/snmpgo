@@ -223,13 +223,13 @@ func NewOid(s string) (oid *Oid, err error) {
 	return &Oid{o}, nil
 }
 
-func NewOids(s []string) (oids []Oid, err error) {
+func NewOids(s []string) (oids []*Oid, err error) {
 	for _, l := range s {
 		o, e := NewOid(l)
 		if e != nil {
 			return nil, e
 		}
-		oids = append(oids, *o)
+		oids = append(oids, o)
 	}
 	return
 }
