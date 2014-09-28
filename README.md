@@ -74,7 +74,6 @@ func main() {
     if pdu.ErrorStatus() != snmpgo.NoError {
         // Received an error from the agent
         fmt.Println(pdu.ErrorStatus(), pdu.ErrorIndex())
-        return
     }
 
     // get VarBind list
@@ -138,8 +137,7 @@ func main() {
         Variable: snmpgo.NewOctetString("eth0"),
     })
 
-    err = snmp.V2Trap(varBinds)
-    if err != nil {
+    if err = snmp.V2Trap(varBinds); err != nil {
         // Failed to request
         fmt.Println(err)
         return
