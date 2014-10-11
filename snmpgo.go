@@ -262,11 +262,15 @@ func (s *SNMP) sendPdu(pdu Pdu) (result Pdu, err error) {
 func (s *SNMP) checkPdu(pdu Pdu) (err error) {
 	varBinds := pdu.VarBinds()
 	if s.args.Version == V3 && pdu.PduType() == Report && len(varBinds) > 0 {
-		if msg, ok := reportStatsOids[varBinds[0].Oid.String()]; ok {
-			err = ResponseError{
-				Message: fmt.Sprintf("Received a report from the agent - %s", msg),
-				Detail:  fmt.Sprintf("Pdu - %s", pdu),
-			}
+		oid := varBinds[0].Oid.String()
+		rep := reportStatusOid(oid)
+		err = ResponseError{
+			Message: fmt.Sprintf("Received a report from the agent - %s(%s)", rep, oid),
+			Detail:  fmt.Sprintf("Pdu - %s", pdu),
+		}
+		// perhaps the agent has rebooted after the previous communication
+		if rep == usmStatsNotInTimeWindows {
+			err = notInTimeWindowError{err.(ResponseError)}
 		}
 	}
 	return

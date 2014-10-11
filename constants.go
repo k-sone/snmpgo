@@ -203,24 +203,55 @@ const (
 	tagEndOfMibView     = 0x82
 )
 
+type reportStatusOid string
+
+const (
+	// RFC 3412 Section 5
+	snmpUnknownSecurityModels reportStatusOid = "1.3.6.1.6.3.11.2.1.1.0"
+	snmpInvalidMsgs           reportStatusOid = "1.3.6.1.6.3.11.2.1.2.0"
+	snmpUnknownPDUHandlers    reportStatusOid = "1.3.6.1.6.3.11.2.1.3.0"
+	// RFC 3413 Section 4.1.2
+	snmpUnavailableContexts reportStatusOid = "1.3.6.1.6.3.12.1.4.0"
+	snmpUnknownContexts     reportStatusOid = "1.3.6.1.6.3.12.1.5.0"
+	// RFC 3414 Section 5
+	usmStatsUnsupportedSecLevels reportStatusOid = "1.3.6.1.6.3.15.1.1.1.0"
+	usmStatsNotInTimeWindows     reportStatusOid = "1.3.6.1.6.3.15.1.1.2.0"
+	usmStatsUnknownUserNames     reportStatusOid = "1.3.6.1.6.3.15.1.1.3.0"
+	usmStatsUnknownEngineIDs     reportStatusOid = "1.3.6.1.6.3.15.1.1.4.0"
+	usmStatsWrongDigests         reportStatusOid = "1.3.6.1.6.3.15.1.1.5.0"
+	usmStatsDecryptionErrors     reportStatusOid = "1.3.6.1.6.3.15.1.1.6.0"
+)
+
+func (r reportStatusOid) String() string {
+	switch r {
+	case snmpUnknownSecurityModels:
+		return "SnmpUnknownSecurityModels"
+	case snmpInvalidMsgs:
+		return "SnmpInvalidMsgs"
+	case snmpUnknownPDUHandlers:
+		return "SnmpUnknownPDUHandlers"
+	case snmpUnavailableContexts:
+		return "SnmpUnavailableContexts"
+	case snmpUnknownContexts:
+		return "SnmpUnknownContexts"
+	case usmStatsUnsupportedSecLevels:
+		return "UsmStatsUnsupportedSecLevels"
+	case usmStatsNotInTimeWindows:
+		return "UsmStatsNotInTimeWindows"
+	case usmStatsUnknownUserNames:
+		return "UsmStatsUnknownUserNames"
+	case usmStatsUnknownEngineIDs:
+		return "UsmStatsUnknownEngineIDs"
+	case usmStatsWrongDigests:
+		return "UsmStatsWrongDigests"
+	case usmStatsDecryptionErrors:
+		return "UsmStatsDecryptionErrors"
+	default:
+		return "Unknown"
+	}
+}
+
 var (
 	OidSysUpTime = newOidWithoutError("1.3.6.1.2.1.1.3.0")
 	OidSnmpTrap  = newOidWithoutError("1.3.6.1.6.3.1.1.4.1.0")
-
-	reportStatsOids map[string]string = map[string]string{
-		// RFC 3412 Section 5
-		"1.3.6.1.6.3.11.2.1.1.0": "snmpUnknownSecurityModels",
-		"1.3.6.1.6.3.11.2.1.2.0": "snmpInvalidMsgs",
-		"1.3.6.1.6.3.11.2.1.3.0": "snmpUnknownPDUHandlers",
-		// RFC 3413 Section 4.1.2
-		"1.3.6.1.6.3.12.1.4.0": "snmpUnavailableContexts",
-		"1.3.6.1.6.3.12.1.5.0": "snmpUnknownContexts",
-		// RFC 3414 Section 5
-		"1.3.6.1.6.3.15.1.1.1.0": "usmStatsUnsupportedSecLevels",
-		"1.3.6.1.6.3.15.1.1.2.0": "usmStatsNotInTimeWindows",
-		"1.3.6.1.6.3.15.1.1.3.0": "usmStatsUnknownUserNames",
-		"1.3.6.1.6.3.15.1.1.4.0": "usmStatsUnknownEngineIDs",
-		"1.3.6.1.6.3.15.1.1.5.0": "usmStatsWrongDigests",
-		"1.3.6.1.6.3.15.1.1.6.0": "usmStatsDecryptionErrors",
-	}
 )

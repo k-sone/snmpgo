@@ -26,3 +26,7 @@ func (e ResponseError) Error() string {
 		return fmt.Sprintf("%s, cause `%v`", e.Message, e.Cause)
 	}
 }
+
+type notInTimeWindowError struct {
+	ResponseError
+}

@@ -53,12 +53,16 @@ func genMessageId() (id int) {
 func retry(retries int, f func() error) (err error) {
 	for i := 0; i <= retries; i++ {
 		err = f()
-		if err == nil {
-			return
+		switch err.(type) {
+		case net.Error:
+			if err.(net.Error).Timeout() {
+				continue
+			}
+		case notInTimeWindowError:
+			err = err.(notInTimeWindowError).ResponseError
+			continue
 		}
-		if e, ok := err.(net.Error); !ok || !e.Timeout() {
-			break
-		}
+		return
 	}
 	return
 }
