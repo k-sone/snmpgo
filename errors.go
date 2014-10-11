@@ -4,12 +4,9 @@ import (
 	"fmt"
 )
 
-type SNMPError struct{}
-
 type ArgumentError struct {
 	Value   interface{}
 	Message string
-	SNMPError
 }
 
 func (e ArgumentError) Error() string {
@@ -20,7 +17,6 @@ type ResponseError struct {
 	Cause   error
 	Message string
 	Detail  string
-	SNMPError
 }
 
 func (e ResponseError) Error() string {
