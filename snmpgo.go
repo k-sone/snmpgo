@@ -199,7 +199,15 @@ func (s *SNMP) GetBulkRequest(
 	return
 }
 
-func (s *SNMP) V2Trap(varBinds VarBinds) (err error) {
+func (s *SNMP) V2Trap(varBinds VarBinds) error {
+	return s.v2trap(SNMPTrapV2, varBinds)
+}
+
+func (s *SNMP) InformRequest(varBinds VarBinds) error {
+	return s.v2trap(InformRequest, varBinds)
+}
+
+func (s *SNMP) v2trap(pduType PduType, varBinds VarBinds) (err error) {
 	if s.args.Version < V2c {
 		return ArgumentError{
 			Value:   s.args.Version,
@@ -207,7 +215,7 @@ func (s *SNMP) V2Trap(varBinds VarBinds) (err error) {
 		}
 	}
 
-	pdu := NewPduWithVarBinds(s.args.Version, SNMPTrapV2, varBinds)
+	pdu := NewPduWithVarBinds(s.args.Version, pduType, varBinds)
 
 	retry(int(s.args.Retries), func() error {
 		_, err = s.sendPdu(pdu)

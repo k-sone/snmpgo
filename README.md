@@ -9,16 +9,12 @@ Supported Message Types
 * SNMP V1
     - GetRequest
     - GetNextRequest
-* SNMP V2c
+* SNMP V2c, V3
     - GetRequest
     - GetNextRequest
     - GetBulkRequest
     - V2Trap
-* SNMP V3
-    - GetRequest
-    - GetNextRequest
-    - GetBulkRequest
-    - V2Trap
+    - InformRequest
 
 Examples
 --------
