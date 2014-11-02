@@ -111,27 +111,18 @@ func main() {
     }
     defer snmp.Close()
 
+    // Build VarBind list
     var varBinds snmpgo.VarBinds
+    varBinds = append(varBinds, snmpgo.NewVarBind(snmpgo.OidSysUpTime, snmpgo.NewTimeTicks(1000)))
 
-    varBinds = append(varBinds, &snmpgo.VarBind{
-        Oid:      snmpgo.OidSysUpTime,
-        Variable: snmpgo.NewTimeTicks(1000),
-    })
     oid, _ := snmpgo.NewOid("1.3.6.1.6.3.1.1.5.3")
-    varBinds = append(varBinds, &snmpgo.VarBind{
-        Oid:      snmpgo.OidSnmpTrap,
-        Variable: oid,
-    })
+    varBinds = append(varBinds, snmpgo.NewVarBind(snmpgo.OidSnmpTrap, oid))
+
     oid, _ = snmpgo.NewOid("1.3.6.1.2.1.2.2.1.1.2")
-    varBinds = append(varBinds, &snmpgo.VarBind{
-        Oid:      oid,
-        Variable: snmpgo.NewInteger(2),
-    })
+    varBinds = append(varBinds, snmpgo.NewVarBind(oid, snmpgo.NewInteger(2)))
+
     oid, _ = snmpgo.NewOid("1.3.6.1.2.1.31.1.1.1.1.2")
-    varBinds = append(varBinds, &snmpgo.VarBind{
-        Oid:      oid,
-        Variable: snmpgo.NewOctetString("eth0"),
-    })
+    varBinds = append(varBinds, snmpgo.NewVarBind(oid, snmpgo.NewOctetString("eth0")))
 
     if err = snmp.V2Trap(varBinds); err != nil {
         // Failed to request

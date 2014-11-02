@@ -75,6 +75,13 @@ func (v *VarBind) String() string {
 		oid, vtype, value)
 }
 
+func NewVarBind(oid *Oid, val Variable) *VarBind {
+	return &VarBind{
+		Oid:      oid,
+		Variable: val,
+	}
+}
+
 type VarBinds []*VarBind
 
 func (v VarBinds) MatchOid(oid *Oid) *VarBind {

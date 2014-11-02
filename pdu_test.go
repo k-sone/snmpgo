@@ -77,20 +77,11 @@ func TestVarBinds(t *testing.T) {
 	var v snmpgo.VarBinds
 
 	oid, _ := snmpgo.NewOid("1.3.6.1.2.1.1.1.0")
-	v = append(v, &snmpgo.VarBind{
-		Oid:      oid,
-		Variable: snmpgo.NewOctetString("MyHost"),
-	})
+	v = append(v, snmpgo.NewVarBind(oid, snmpgo.NewOctetString("MyHost")))
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.2.0")
-	v = append(v, &snmpgo.VarBind{
-		Oid:      oid,
-		Variable: snmpgo.NewNull(),
-	})
+	v = append(v, snmpgo.NewVarBind(oid, snmpgo.NewNull()))
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.3.0")
-	v = append(v, &snmpgo.VarBind{
-		Oid:      oid,
-		Variable: snmpgo.NewTimeTicks(uint32(11111)),
-	})
+	v = append(v, snmpgo.NewVarBind(oid, snmpgo.NewTimeTicks(uint32(11111))))
 
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.1.0")
 	varBind := v.MatchOid(oid)
