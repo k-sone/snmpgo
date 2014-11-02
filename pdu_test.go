@@ -99,23 +99,23 @@ func TestVarBinds(t *testing.T) {
 	}
 
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1")
-	varBinds := v.BaseMatchOids(oid)
+	varBinds := v.MatchBaseOids(oid)
 	if len(varBinds) != 3 {
-		t.Errorf("Failed to BaseMatchOids()")
+		t.Errorf("Failed to MatchBaseOids()")
 	}
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.1.0")
-	varBinds = v.BaseMatchOids(oid)
+	varBinds = v.MatchBaseOids(oid)
 	if len(varBinds) != 1 || !varBinds[0].Oid.Equal(oid) {
-		t.Errorf("Failed to BaseMatchOids() - one")
+		t.Errorf("Failed to MatchBaseOids() - one")
 	}
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.1.1")
-	varBinds = v.BaseMatchOids(oid)
+	varBinds = v.MatchBaseOids(oid)
 	if len(varBinds) != 0 {
-		t.Errorf("Failed to BaseMatchOids() - no match")
+		t.Errorf("Failed to MatchBaseOids() - no match")
 	}
-	varBinds = v.BaseMatchOids(nil)
+	varBinds = v.MatchBaseOids(nil)
 	if len(varBinds) != 0 {
-		t.Errorf("Failed to BaseMatchOids() - nil")
+		t.Errorf("Failed to MatchBaseOids() - nil")
 	}
 }
 

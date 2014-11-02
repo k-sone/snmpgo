@@ -93,7 +93,7 @@ func (v VarBinds) MatchOid(oid *Oid) *VarBind {
 	return nil
 }
 
-func (v VarBinds) BaseMatchOids(oid *Oid) VarBinds {
+func (v VarBinds) MatchBaseOids(oid *Oid) VarBinds {
 	result := make(VarBinds, 0)
 	for _, o := range v {
 		if o.Oid != nil && o.Oid.Contains(oid) {
