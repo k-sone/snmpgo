@@ -41,7 +41,7 @@ func (a *SNMPArguments) validate() error {
 	if v := a.Version; v != V1 && v != V2c && v != V3 {
 		return ArgumentError{
 			Value:   v,
-			Message: fmt.Sprintf("Unknown SNMP Version"),
+			Message: "Unknown SNMP Version",
 		}
 	}
 	// RFC3412 Section 6
@@ -145,7 +145,7 @@ func (s *SNMP) Close() {
 	}
 }
 
-func (s *SNMP) GetRequest(oids []*Oid) (result Pdu, err error) {
+func (s *SNMP) GetRequest(oids Oids) (result Pdu, err error) {
 	pdu := NewPduWithOids(s.args.Version, GetRequest, oids)
 
 	retry(int(s.args.Retries), func() error {
@@ -155,7 +155,7 @@ func (s *SNMP) GetRequest(oids []*Oid) (result Pdu, err error) {
 	return
 }
 
-func (s *SNMP) GetNextRequest(oids []*Oid) (result Pdu, err error) {
+func (s *SNMP) GetNextRequest(oids Oids) (result Pdu, err error) {
 	pdu := NewPduWithOids(s.args.Version, GetNextRequest, oids)
 
 	retry(int(s.args.Retries), func() error {
@@ -166,7 +166,7 @@ func (s *SNMP) GetNextRequest(oids []*Oid) (result Pdu, err error) {
 }
 
 func (s *SNMP) GetBulkRequest(
-	oids []*Oid, nonRepeaters, maxRepetitions int) (result Pdu, err error) {
+	oids Oids, nonRepeaters, maxRepetitions int) (result Pdu, err error) {
 
 	if s.args.Version < V2c {
 		return nil, ArgumentError{

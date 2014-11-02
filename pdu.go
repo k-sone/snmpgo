@@ -3,6 +3,7 @@ package snmpgo
 import (
 	"encoding/asn1"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -103,12 +104,60 @@ func (v VarBinds) MatchBaseOids(oid *Oid) VarBinds {
 	return result
 }
 
+func (v VarBinds) Sort() VarBinds {
+	c := make(VarBinds, len(v))
+	copy(c, v)
+	sort.Sort(sortableVarBinds{c})
+	return c
+}
+
+func (v VarBinds) uniq(comp func(a, b *VarBind) bool) VarBinds {
+	var before *VarBind
+	c := make(VarBinds, 0, len(v))
+	for _, val := range v {
+		if !comp(before, val) {
+			before = val
+			c = append(c, val)
+		}
+	}
+	return c
+}
+
+func (v VarBinds) Uniq() VarBinds {
+	return v.uniq(func(a, b *VarBind) bool {
+		if b == nil {
+			return a == nil
+		} else if b.Oid == nil {
+			return a != nil && a.Oid == nil
+		} else {
+			return a != nil && b.Oid.Equal(a.Oid)
+		}
+	})
+}
+
 func (v VarBinds) String() string {
 	varBinds := make([]string, len(v))
 	for i, o := range v {
 		varBinds[i] = o.String()
 	}
 	return "[" + strings.Join(varBinds, ", ") + "]"
+}
+
+type sortableVarBinds struct {
+	VarBinds
+}
+
+func (v sortableVarBinds) Len() int {
+	return len(v.VarBinds)
+}
+
+func (v sortableVarBinds) Swap(i, j int) {
+	v.VarBinds[i], v.VarBinds[j] = v.VarBinds[j], v.VarBinds[i]
+}
+
+func (v sortableVarBinds) Less(i, j int) bool {
+	t := v.VarBinds[i]
+	return t != nil && t.Oid != nil && t.Oid.Compare(v.VarBinds[j].Oid) < 1
 }
 
 type Pdu interface {
@@ -380,7 +429,7 @@ func NewPdu(ver SNMPVersion, t PduType) (pdu Pdu) {
 	return
 }
 
-func NewPduWithOids(ver SNMPVersion, t PduType, oids []*Oid) (pdu Pdu) {
+func NewPduWithOids(ver SNMPVersion, t PduType, oids Oids) (pdu Pdu) {
 	pdu = NewPdu(ver, t)
 	for _, o := range oids {
 		pdu.AppendVarBind(o, NewNull())

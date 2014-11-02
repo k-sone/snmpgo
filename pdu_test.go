@@ -117,6 +117,51 @@ func TestVarBinds(t *testing.T) {
 	if len(varBinds) != 0 {
 		t.Errorf("Failed to MatchBaseOids() - nil")
 	}
+
+	var w snmpgo.VarBinds
+	for _, o := range []string{
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1",
+		"1.3.6.1.2.1.1.1.0",
+	} {
+		oid, _ = snmpgo.NewOid(o)
+		w = append(w, snmpgo.NewVarBind(oid, snmpgo.NewNull()))
+	}
+
+	expOids, _ := snmpgo.NewOids([]string{
+		"1.3.6.1.2.1.1",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+	})
+	w = w.Sort()
+	if len(expOids) != len(w) {
+		t.Errorf("Sort() - expected [%d], actual [%d]", len(expOids), len(w))
+	}
+	for i, o := range expOids {
+		if !o.Equal(w[i].Oid) {
+			t.Errorf("Sort() - expected [%s], actual [%s]", o, w[i].Oid)
+		}
+	}
+
+	expOids, _ = snmpgo.NewOids([]string{
+		"1.3.6.1.2.1.1",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+	})
+	w = w.Sort().Uniq()
+	if len(expOids) != len(w) {
+		t.Errorf("Uniq() - expected [%d], actual [%d]", len(expOids), len(w))
+	}
+	for i, o := range expOids {
+		if !o.Equal(w[i].Oid) {
+			t.Errorf("Uniq() - expected [%s], actual [%s]", o, w[i].Oid)
+		}
+	}
 }
 
 func TestNewPdu(t *testing.T) {

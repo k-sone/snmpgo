@@ -262,6 +262,62 @@ func TestNewOid(t *testing.T) {
 	}
 }
 
+func TestOids(t *testing.T) {
+	oids, _ := snmpgo.NewOids([]string{
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1",
+		"1.3.6.1.2.1.1.1.0",
+	})
+
+	expOids, _ := snmpgo.NewOids([]string{
+		"1.3.6.1.2.1.1",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+	})
+	oids = oids.Sort()
+	if len(expOids) != len(oids) {
+		t.Errorf("Sort() - expected [%d], actual [%d]", len(expOids), len(oids))
+	}
+	for i, o := range expOids {
+		if !o.Equal(oids[i]) {
+			t.Errorf("Sort() - expected [%s], actual [%s]", o, oids[i])
+		}
+	}
+
+	expOids, _ = snmpgo.NewOids([]string{
+		"1.3.6.1.2.1.1",
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+	})
+	oids = oids.Sort().Uniq()
+	if len(expOids) != len(oids) {
+		t.Errorf("Uniq() - expected [%d], actual [%d]", len(expOids), len(oids))
+	}
+	for i, o := range expOids {
+		if !o.Equal(oids[i]) {
+			t.Errorf("Uniq() - expected [%s], actual [%s]", o, oids[i])
+		}
+	}
+
+	expOids, _ = snmpgo.NewOids([]string{
+		"1.3.6.1.2.1.1",
+	})
+	oids = oids.Sort().UniqBase()
+	if len(expOids) != len(oids) {
+		t.Errorf("Uniq() - expected [%d], actual [%d]", len(expOids), len(oids))
+	}
+	for i, o := range expOids {
+		if !o.Equal(oids[i]) {
+			t.Errorf("Uniq() - expected [%s], actual [%s]", o, oids[i])
+		}
+	}
+}
+
 func TestIpaddress(t *testing.T) {
 	expStr := "192.168.1.1"
 	expInt := int64(3232235777)

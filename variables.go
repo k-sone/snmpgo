@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -223,7 +224,64 @@ func NewOid(s string) (oid *Oid, err error) {
 	return &Oid{o}, nil
 }
 
-func NewOids(s []string) (oids []*Oid, err error) {
+type Oids []*Oid
+
+func (o Oids) Sort() Oids {
+	c := make(Oids, len(o))
+	copy(c, o)
+	sort.Sort(sortableOids{c})
+	return c
+}
+
+func (o Oids) uniq(comp func(a, b *Oid) bool) Oids {
+	var before *Oid
+	c := make(Oids, 0, len(o))
+	for _, oid := range o {
+		if !comp(before, oid) {
+			before = oid
+			c = append(c, oid)
+		}
+	}
+	return c
+}
+
+func (o Oids) Uniq() Oids {
+	return o.uniq(func(a, b *Oid) bool {
+		if b == nil {
+			return a == nil
+		} else {
+			return b.Equal(a)
+		}
+	})
+}
+
+func (o Oids) UniqBase() Oids {
+	return o.uniq(func(a, b *Oid) bool {
+		if b == nil {
+			return a == nil
+		} else {
+			return b.Contains(a)
+		}
+	})
+}
+
+type sortableOids struct {
+	Oids
+}
+
+func (o sortableOids) Len() int {
+	return len(o.Oids)
+}
+
+func (o sortableOids) Swap(i, j int) {
+	o.Oids[i], o.Oids[j] = o.Oids[j], o.Oids[i]
+}
+
+func (o sortableOids) Less(i, j int) bool {
+	return o.Oids[i] != nil && o.Oids[i].Compare(o.Oids[j]) < 1
+}
+
+func NewOids(s []string) (oids Oids, err error) {
 	for _, l := range s {
 		o, e := NewOid(l)
 		if e != nil {
