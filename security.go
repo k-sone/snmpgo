@@ -234,15 +234,7 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 			u.DiscoveryStatus = discovered
 		}
 	case noDiscovered:
-		u.AuthEngineId = rm.AuthEngineId
-		if len(snmp.args.AuthPassword) > 0 {
-			u.AuthKey = passwordToKey(
-				snmp.args.AuthProtocol, snmp.args.AuthPassword, rm.AuthEngineId)
-		}
-		if len(snmp.args.PrivPassword) > 0 {
-			u.PrivKey = passwordToKey(
-				snmp.args.AuthProtocol, snmp.args.PrivPassword, rm.AuthEngineId)
-		}
+		u.SetAuthEngineId(snmp, rm.AuthEngineId)
 		u.DiscoveryStatus = noSynchronized
 	}
 	if err != nil {
@@ -292,6 +284,13 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 }
 
 func (u *usm) Discover(snmp *SNMP) (err error) {
+	if snmp.args.SecurityEngineId != "" {
+		securityEngineId, _ := engineIdToBytes(snmp.args.SecurityEngineId)
+		u.SetAuthEngineId(snmp, securityEngineId)
+		u.DiscoveryStatus = noSynchronized
+		return
+	}
+
 	if u.DiscoveryStatus == noDiscovered {
 		// Send an empty Pdu with the NoAuthNoPriv
 		orgSecLevel := snmp.args.SecurityLevel
@@ -316,6 +315,16 @@ func (u *usm) Discover(snmp *SNMP) (err error) {
 	}
 
 	return
+}
+
+func (u *usm) SetAuthEngineId(snmp *SNMP, authEngineId []byte) {
+	u.AuthEngineId = authEngineId
+	if len(snmp.args.AuthPassword) > 0 {
+		u.AuthKey = passwordToKey(snmp.args.AuthProtocol, snmp.args.AuthPassword, authEngineId)
+	}
+	if len(snmp.args.PrivPassword) > 0 {
+		u.PrivKey = passwordToKey(snmp.args.AuthProtocol, snmp.args.PrivPassword, authEngineId)
+	}
 }
 
 func (u *usm) UpdateEngineBootsTime() error {

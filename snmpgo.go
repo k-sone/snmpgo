@@ -8,21 +8,22 @@ import (
 )
 
 type SNMPArguments struct {
-	Version         SNMPVersion   // SNMP version to use
-	Network         string        // See net.Dial parameter (The default is `udp`)
-	Address         string        // See net.Dial parameter
-	Timeout         time.Duration // Request timeout (The default is 5sec)
-	Retries         uint          // Number of retries (The default is `0`)
-	MessageMaxSize  int           // Maximum size of an SNMP message (The default is `1400`)
-	Community       string        // Community (V1 or V2c specific)
-	UserName        string        // Security name (V3 specific)
-	SecurityLevel   SecurityLevel // Security level (V3 specific)
-	AuthPassword    string        // Authentication protocol pass phrase (V3 specific)
-	AuthProtocol    AuthProtocol  // Authentication protocol (V3 specific)
-	PrivPassword    string        // Privacy protocol pass phrase (V3 specific)
-	PrivProtocol    PrivProtocol  // Privacy protocol (V3 specific)
-	ContextEngineId string        // Context engine ID (V3 specific)
-	ContextName     string        // Context name (V3 specific)
+	Version          SNMPVersion   // SNMP version to use
+	Network          string        // See net.Dial parameter (The default is `udp`)
+	Address          string        // See net.Dial parameter
+	Timeout          time.Duration // Request timeout (The default is 5sec)
+	Retries          uint          // Number of retries (The default is `0`)
+	MessageMaxSize   int           // Maximum size of an SNMP message (The default is `1400`)
+	Community        string        // Community (V1 or V2c specific)
+	UserName         string        // Security name (V3 specific)
+	SecurityLevel    SecurityLevel // Security level (V3 specific)
+	AuthPassword     string        // Authentication protocol pass phrase (V3 specific)
+	AuthProtocol     AuthProtocol  // Authentication protocol (V3 specific)
+	PrivPassword     string        // Privacy protocol pass phrase (V3 specific)
+	PrivProtocol     PrivProtocol  // Privacy protocol (V3 specific)
+	SecurityEngineId string        // Security engine ID (V3 specific)
+	ContextEngineId  string        // Context engine ID (V3 specific)
+	ContextName      string        // Context name (V3 specific)
 }
 
 func (a *SNMPArguments) setDefault() {
@@ -88,6 +89,12 @@ func (a *SNMPArguments) validate() error {
 					Value:   a.PrivProtocol,
 					Message: "Illegal PrivProtocol",
 				}
+			}
+		}
+		if a.SecurityEngineId != "" {
+			_, err := engineIdToBytes(a.SecurityEngineId)
+			if err != nil {
+				return err
 			}
 		}
 		if a.ContextEngineId != "" {
