@@ -229,8 +229,10 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 		}
 		fallthrough
 	case noSynchronized:
-		u.SynchronizeEngineBootsTime(rm.AuthEngineBoots, rm.AuthEngineTime)
-		u.DiscoveryStatus = discovered
+		if rm.Authentication() {
+			u.SynchronizeEngineBootsTime(rm.AuthEngineBoots, rm.AuthEngineTime)
+			u.DiscoveryStatus = discovered
+		}
 	case noDiscovered:
 		u.AuthEngineId = rm.AuthEngineId
 		if len(snmp.args.AuthPassword) > 0 {
@@ -304,7 +306,7 @@ func (u *usm) Discover(snmp *SNMP) (err error) {
 		}
 	}
 
-	if u.DiscoveryStatus == noSynchronized {
+	if u.DiscoveryStatus == noSynchronized && snmp.args.SecurityLevel > NoAuthNoPriv {
 		// Send an empty Pdu
 		pdu := NewPdu(snmp.args.Version, GetRequest)
 		_, err = snmp.sendPdu(pdu)
