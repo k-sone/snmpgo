@@ -43,13 +43,6 @@ func main() {
         return
     }
 
-    if err = snmp.Open(); err != nil {
-        // Failed to open connection
-        fmt.Println(err)
-        return
-    }
-    defer snmp.Close()
-
     oids, err := snmpgo.NewOids([]string{
         "1.3.6.1.2.1.1.1.0",
         "1.3.6.1.2.1.1.2.0",
@@ -60,6 +53,13 @@ func main() {
         fmt.Println(err)
         return
     }
+
+    if err = snmp.Open(); err != nil {
+        // Failed to open connection
+        fmt.Println(err)
+        return
+    }
+    defer snmp.Close()
 
     pdu, err := snmp.GetRequest(oids)
     if err != nil {
