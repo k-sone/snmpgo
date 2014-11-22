@@ -58,7 +58,7 @@ func TestInteger(t *testing.T) {
 func TestOctetString(t *testing.T) {
 	expStr := "Test"
 	expBuf := []byte{0x04, 0x04, 0x54, 0x65, 0x73, 0x74}
-	var v snmpgo.Variable = snmpgo.NewOctetString(expStr)
+	var v snmpgo.Variable = snmpgo.NewOctetString([]byte(expStr))
 
 	_, err := v.BigInt()
 	if err == nil {

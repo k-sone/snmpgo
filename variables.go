@@ -76,8 +76,8 @@ func (v *OctetString) Unmarshal(b []byte) (rest []byte, err error) {
 	return unmarshalString(b, tagOctetString, func(s []byte) { v.Value = s })
 }
 
-func NewOctetString(s string) *OctetString {
-	return &OctetString{[]byte(s)}
+func NewOctetString(b []byte) *OctetString {
+	return &OctetString{b}
 }
 
 type Null struct{}

@@ -40,7 +40,7 @@ func TestVarBind(t *testing.T) {
 	testVarBind(t, &v,
 		`{"Oid": "1.3.6.1.2.1.1.1.0", "Variable": {"Type": "Integer", "Value": "-2147483648"}}`)
 
-	v.Variable = snmpgo.NewOctetString("MyHost")
+	v.Variable = snmpgo.NewOctetString([]byte("MyHost"))
 	testVarBind(t, &v,
 		`{"Oid": "1.3.6.1.2.1.1.1.0", "Variable": {"Type": "OctetString", "Value": "MyHost"}}`)
 
@@ -77,7 +77,7 @@ func TestVarBinds(t *testing.T) {
 	var v snmpgo.VarBinds
 
 	oid, _ := snmpgo.NewOid("1.3.6.1.2.1.1.1.0")
-	v = append(v, snmpgo.NewVarBind(oid, snmpgo.NewOctetString("MyHost")))
+	v = append(v, snmpgo.NewVarBind(oid, snmpgo.NewOctetString([]byte("MyHost"))))
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.2.0")
 	v = append(v, snmpgo.NewVarBind(oid, snmpgo.NewNull()))
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.3.0")
@@ -188,7 +188,7 @@ func TestPduV1(t *testing.T) {
 	pdu.SetErrorIndex(2)
 
 	oid, _ := snmpgo.NewOid("1.3.6.1.2.1.1.1.0")
-	pdu.AppendVarBind(oid, snmpgo.NewOctetString("MyHost"))
+	pdu.AppendVarBind(oid, snmpgo.NewOctetString([]byte("MyHost")))
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.2.0")
 	pdu.AppendVarBind(oid, snmpgo.NewNull())
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.3.0")
@@ -237,7 +237,7 @@ func TestScopedPdu(t *testing.T) {
 	sp.ContextName = []byte("MyContext")
 
 	oid, _ := snmpgo.NewOid("1.3.6.1.2.1.1.1.0")
-	pdu.AppendVarBind(oid, snmpgo.NewOctetString("MyHost"))
+	pdu.AppendVarBind(oid, snmpgo.NewOctetString([]byte("MyHost")))
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.2.0")
 	pdu.AppendVarBind(oid, snmpgo.NewNull())
 	oid, _ = snmpgo.NewOid("1.3.6.1.2.1.1.3.0")
