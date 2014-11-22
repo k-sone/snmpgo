@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -84,6 +85,12 @@ func engineIdToBytes(engineId string) ([]byte, error) {
 		}
 	}
 	return b, nil
+}
+
+var hexPrefix *regexp.Regexp = regexp.MustCompile(`^0[xX]`)
+
+func stripHexPrefix(s string) string {
+	return hexPrefix.ReplaceAllString(s, "")
 }
 
 func toHexStr(a []byte, sep string) string {

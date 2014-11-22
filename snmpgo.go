@@ -92,12 +92,14 @@ func (a *SNMPArguments) validate() error {
 			}
 		}
 		if a.SecurityEngineId != "" {
+			a.SecurityEngineId = stripHexPrefix(a.SecurityEngineId)
 			_, err := engineIdToBytes(a.SecurityEngineId)
 			if err != nil {
 				return err
 			}
 		}
 		if a.ContextEngineId != "" {
+			a.ContextEngineId = stripHexPrefix(a.ContextEngineId)
 			_, err := engineIdToBytes(a.ContextEngineId)
 			if err != nil {
 				return err

@@ -1,5 +1,6 @@
 package snmpgo
 
+var StripHexPrefix = stripHexPrefix
 var ToHexStr = toHexStr
 
 // For snmpgo testing
