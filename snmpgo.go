@@ -208,6 +208,77 @@ func (s *SNMP) GetBulkRequest(
 	return
 }
 
+// This method inquire about OID subtrees by repeatedly using GetBulkRequest.
+// Returned PDU contains the varbind list of all subtrees.
+// however, if the ErrorStatus of PDU is not the NoError, return only the last query result.
+func (s *SNMP) GetBulkWalk(oids Oids, nonRepeaters, maxRepetitions int) (result Pdu, err error) {
+	var nonRepBinds, resBinds VarBinds
+
+	oids = append(oids[:nonRepeaters], oids[nonRepeaters:].Sort().UniqBase()...)
+	reqOids := make(Oids, len(oids))
+	copy(reqOids, oids)
+
+	for len(reqOids) > 0 {
+		pdu, err := s.GetBulkRequest(reqOids, nonRepeaters, maxRepetitions)
+		if err != nil {
+			return nil, err
+		}
+		if s := pdu.ErrorStatus(); s != NoError &&
+			(s != NoSuchName || pdu.ErrorIndex() <= nonRepeaters) {
+			return pdu, nil
+		}
+
+		varBinds := pdu.VarBinds()
+
+		if nonRepeaters > 0 {
+			nonRepBinds = append(nonRepBinds, varBinds[:nonRepeaters]...)
+			varBinds = varBinds[nonRepeaters:]
+			oids = oids[nonRepeaters:]
+			reqOids = reqOids[nonRepeaters:]
+			nonRepeaters = 0
+		}
+
+		filled := len(varBinds) == len(reqOids)*maxRepetitions
+		varBinds = varBinds.Sort().Uniq()
+
+		for i, _ := range reqOids {
+			matched := varBinds.MatchBaseOids(oids[i])
+			mLength := len(matched)
+
+			if mLength == 0 || resBinds.MatchOid(matched[mLength-1].Oid) != nil {
+				reqOids[i] = nil
+				continue
+			}
+
+			hasError := false
+			for _, val := range matched {
+				switch val.Variable.(type) {
+				case *NoSucheObject, *NoSucheInstance, *EndOfMibView:
+					hasError = true
+				default:
+					resBinds = append(resBinds, val)
+					reqOids[i] = val.Oid
+				}
+			}
+
+			if hasError || (filled && mLength < maxRepetitions) {
+				reqOids[i] = nil
+			}
+		}
+
+		// sweep completed oids
+		for i := len(reqOids) - 1; i >= 0; i-- {
+			if reqOids[i] == nil {
+				reqOids = append(reqOids[:i], reqOids[i+1:]...)
+				oids = append(oids[:i], oids[i+1:]...)
+			}
+		}
+	}
+
+	resBinds = append(nonRepBinds, resBinds.Sort().Uniq()...)
+	return NewPduWithVarBinds(s.args.Version, GetResponse, resBinds), nil
+}
+
 func (s *SNMP) V2Trap(varBinds VarBinds) error {
 	return s.v2trap(SNMPTrapV2, varBinds)
 }
