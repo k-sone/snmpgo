@@ -122,7 +122,7 @@ func main() {
     varBinds = append(varBinds, snmpgo.NewVarBind(oid, snmpgo.NewInteger(2)))
 
     oid, _ = snmpgo.NewOid("1.3.6.1.2.1.31.1.1.1.1.2")
-    varBinds = append(varBinds, snmpgo.NewVarBind(oid, snmpgo.NewOctetString("eth0")))
+    varBinds = append(varBinds, snmpgo.NewVarBind(oid, snmpgo.NewOctetString([]byte("eth0"))))
 
     if err = snmp.V2Trap(varBinds); err != nil {
         // Failed to request
