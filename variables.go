@@ -224,6 +224,15 @@ func NewOid(s string) (oid *Oid, err error) {
 	return &Oid{o}, nil
 }
 
+// MustNewOid is like NewOid but panics if argument cannot be parsed
+func MustNewOid(s string) *Oid {
+	if oid, err := NewOid(s); err != nil {
+		panic(`snmpgo.MustNewOid: ` + err.Error())
+	} else {
+		return oid
+	}
+}
+
 type Oids []*Oid
 
 func (o Oids) Sort() Oids {
@@ -531,11 +540,6 @@ func (v *EndOfMibView) Unmarshal(b []byte) (rest []byte, err error) {
 
 func NewEndOfMibView() *EndOfMibView {
 	return &EndOfMibView{Null{}}
-}
-
-func newOidWithoutError(s string) *Oid {
-	oid, _ := NewOid(s)
-	return oid
 }
 
 func unmarshalVariable(b []byte) (v Variable, rest []byte, err error) {
