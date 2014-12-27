@@ -1,6 +1,7 @@
 package snmpgo
 
 import (
+	"bytes"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -12,8 +13,11 @@ import (
 )
 
 type Variable interface {
+	// Return a BigInt representation of this Variable if such a representation exists
 	BigInt() (*big.Int, error)
+	// Return a string representation of this Variable
 	String() string
+	// Return a string of type
 	Type() string
 	Marshal() ([]byte, error)
 	Unmarshal([]byte) (rest []byte, err error)
@@ -135,6 +139,7 @@ func (v *Oid) Unmarshal(b []byte) (rest []byte, err error) {
 	return
 }
 
+// Returns true if this OID contains the specified OID
 func (v *Oid) Contains(o *Oid) bool {
 	if o == nil || len(v.Value) < len(o.Value) {
 		return false
@@ -147,6 +152,9 @@ func (v *Oid) Contains(o *Oid) bool {
 	return true
 }
 
+// Returns 0 this OID is equal to the specified OID,
+// -1 this OID is lexicographically less than the specified OID,
+// 1 this OID is lexicographically greater than the specified OID
 func (v *Oid) Compare(o *Oid) int {
 	if o != nil {
 		vl := len(v.Value)
@@ -165,6 +173,7 @@ func (v *Oid) Compare(o *Oid) int {
 	return -1
 }
 
+// Returns true if this OID is same the specified OID
 func (v *Oid) Equal(o *Oid) bool {
 	if o == nil {
 		return false
@@ -235,6 +244,7 @@ func MustNewOid(s string) *Oid {
 
 type Oids []*Oid
 
+// Sort a Oid list
 func (o Oids) Sort() Oids {
 	c := make(Oids, len(o))
 	copy(c, o)
@@ -254,6 +264,7 @@ func (o Oids) uniq(comp func(a, b *Oid) bool) Oids {
 	return c
 }
 
+// Filter out adjacent OID list
 func (o Oids) Uniq() Oids {
 	return o.uniq(func(a, b *Oid) bool {
 		if b == nil {
@@ -264,6 +275,7 @@ func (o Oids) Uniq() Oids {
 	})
 }
 
+// Filter out adjacent OID list with the same prefix
 func (o Oids) UniqBase() Oids {
 	return o.uniq(func(a, b *Oid) bool {
 		if b == nil {

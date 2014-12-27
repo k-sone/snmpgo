@@ -85,6 +85,7 @@ func NewVarBind(oid *Oid, val Variable) *VarBind {
 
 type VarBinds []*VarBind
 
+// Gets a VarBind that matches
 func (v VarBinds) MatchOid(oid *Oid) *VarBind {
 	for _, o := range v {
 		if o.Oid != nil && o.Oid.Equal(oid) {
@@ -94,16 +95,18 @@ func (v VarBinds) MatchOid(oid *Oid) *VarBind {
 	return nil
 }
 
-func (v VarBinds) MatchBaseOids(oid *Oid) VarBinds {
+// Gets a VarBind list that matches the prefix
+func (v VarBinds) MatchBaseOids(prefix *Oid) VarBinds {
 	result := make(VarBinds, 0)
 	for _, o := range v {
-		if o.Oid != nil && o.Oid.Contains(oid) {
+		if o.Oid != nil && o.Oid.Contains(prefix) {
 			result = append(result, o)
 		}
 	}
 	return result
 }
 
+// Sort a VarBind list by OID
 func (v VarBinds) Sort() VarBinds {
 	c := make(VarBinds, len(v))
 	copy(c, v)
@@ -123,6 +126,7 @@ func (v VarBinds) uniq(comp func(a, b *VarBind) bool) VarBinds {
 	return c
 }
 
+// Filter out adjacent VarBind list
 func (v VarBinds) Uniq() VarBinds {
 	return v.uniq(func(a, b *VarBind) bool {
 		if b == nil {
@@ -160,6 +164,7 @@ func (v sortableVarBinds) Less(i, j int) bool {
 	return t != nil && t.Oid != nil && t.Oid.Compare(v.VarBinds[j].Oid) < 1
 }
 
+// The protocol data unit of SNMP
 type Pdu interface {
 	PduType() PduType
 	RequestId() int
@@ -177,6 +182,7 @@ type Pdu interface {
 	String() string
 }
 
+// The PduV1 is used by SNMP V1 and V2c, other than the SNMP V1 Trap
 type PduV1 struct {
 	pduType     PduType
 	requestId   int
@@ -340,6 +346,8 @@ func (pdu *PduV1) String() string {
 		pdu.varBinds.String())
 }
 
+// The ScopedPdu is used by SNMP V3.
+// Includes the PduV1, and contains a SNMP context parameter
 type ScopedPdu struct {
 	ContextEngineId []byte
 	ContextName     []byte

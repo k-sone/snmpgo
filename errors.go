@@ -4,19 +4,21 @@ import (
 	"fmt"
 )
 
+// An ArgumentError suggests that the arguments are wrong
 type ArgumentError struct {
-	Value   interface{}
-	Message string
+	Value   interface{} // Argument that has a problem
+	Message string      // Error message
 }
 
 func (e ArgumentError) Error() string {
 	return fmt.Sprintf("%s, value `%v`", e.Message, e.Value)
 }
 
+// A ResponseError suggests that the response from the remote agent is wrong or is not obtained
 type ResponseError struct {
-	Cause   error
-	Message string
-	Detail  string
+	Cause   error  // Cause of the error
+	Message string // Error message
+	Detail  string // Detail of the error for debugging
 }
 
 func (e ResponseError) Error() string {

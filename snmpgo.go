@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// An argument for creating a SNMP Object
 type SNMPArguments struct {
 	Version          SNMPVersion   // SNMP version to use
 	Network          string        // See net.Dial parameter (The default is `udp`)
@@ -113,12 +114,14 @@ func (a *SNMPArguments) String() string {
 	return escape(a)
 }
 
+// SNMP Object provides functions for the SNMP Client
 type SNMP struct {
 	args SNMPArguments
 	mp   messageProcessing
 	conn net.Conn
 }
 
+// Open a connection
 func (s *SNMP) Open() (err error) {
 	if s.conn != nil {
 		return
@@ -146,6 +149,7 @@ func (s *SNMP) Open() (err error) {
 	return
 }
 
+// Close a connection
 func (s *SNMP) Close() {
 	if s.conn != nil {
 		s.conn.Close()
@@ -174,8 +178,7 @@ func (s *SNMP) GetNextRequest(oids Oids) (result Pdu, err error) {
 	return
 }
 
-func (s *SNMP) GetBulkRequest(
-	oids Oids, nonRepeaters, maxRepetitions int) (result Pdu, err error) {
+func (s *SNMP) GetBulkRequest(oids Oids, nonRepeaters, maxRepetitions int) (result Pdu, err error) {
 
 	if s.args.Version < V2c {
 		return nil, ArgumentError{
@@ -373,6 +376,7 @@ func (s *SNMP) String() string {
 	}
 }
 
+// Create a SNMP Object
 func NewSNMP(args SNMPArguments) (*SNMP, error) {
 	if err := args.validate(); err != nil {
 		return nil, err
