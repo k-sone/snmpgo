@@ -181,6 +181,16 @@ func (v *Oid) Equal(o *Oid) bool {
 	return v.Value.Equal(o.Value)
 }
 
+// Returns Oid with additional sub-ids
+func (v *Oid) AppendSubIds(subs []int) (*Oid, error) {
+	buf := bytes.NewBufferString(v.String())
+	for _, i := range subs {
+		buf.WriteString(".")
+		buf.WriteString(strconv.Itoa(i))
+	}
+	return NewOid(buf.String())
+}
+
 func NewOid(s string) (oid *Oid, err error) {
 	subids := strings.Split(s, ".")
 

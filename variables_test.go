@@ -206,6 +206,11 @@ func TestOidOperation(t *testing.T) {
 		oid.Equal(oids[3]) || oid.Equal(oids[4]) {
 		t.Errorf("Failed to Contains()")
 	}
+
+	oid, _ = oid.AppendSubIds([]int{8, 9, 10})
+	if oid.String() != "1.2.3.4.5.6.7.8.9.10" {
+		t.Errorf("Failed to AppendSubIds()")
+	}
 }
 
 func TestNewOid(t *testing.T) {
