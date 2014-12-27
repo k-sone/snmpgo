@@ -44,7 +44,7 @@ func parseArgs() (*snmpgo.SNMPArguments, []string) {
 	protocol := flag.String("p", "udp", "Protocol (udp|udp6|tcp|tcp6)")
 	timeout := flag.Uint("t", 5, "Request timeout (number of seconds)")
 	retries := flag.Uint("r", 1, "Number of retries")
-	version := flag.String("v", "1", "SNMP version to use (1|2c|3)")
+	version := flag.String("v", "2c", "SNMP version to use (2c|3)")
 	community := flag.String("c", "", "Community")
 	username := flag.String("u", "", "Security name")
 	seclevel := flag.String("l", "NoAuthNoPriv", "Security level (NoAuthNoPriv|AuthNoPriv|AuthPriv)")
@@ -76,8 +76,6 @@ func parseArgs() (*snmpgo.SNMPArguments, []string) {
 	}
 
 	switch *version {
-	case "1":
-		args.Version = snmpgo.V1
 	case "2c":
 		args.Version = snmpgo.V2c
 	case "3":
