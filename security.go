@@ -237,9 +237,6 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 		u.SetAuthEngineId(snmp, rm.AuthEngineId)
 		u.DiscoveryStatus = noSynchronized
 	}
-	if err != nil {
-		return
-	}
 
 	_, err = rm.Pdu().Unmarshal(rm.PduBytes())
 	if err != nil {
