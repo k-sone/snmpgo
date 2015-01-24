@@ -112,6 +112,7 @@ func parseArgs() (*snmpgo.SNMPArguments, []string) {
 }
 
 type ifInfo struct {
+	descr     string
 	IfList    []int
 	IfName    map[int]string
 	IfIn      map[int]*big.Int
@@ -145,9 +146,12 @@ func getIfInfo(snmp *snmpgo.SNMP) (*ifInfo, error) {
 	}
 
 	info := newIfInfo()
+	if descrs := pdu.VarBinds().MatchBaseOids(sysDescr); len(descrs) > 0 {
+		info.descr = descrs[0].Variable.String()
+	}
 
 	ifNameDepth := len(ifName.Value)
-	for _, varBind := range pdu.VarBinds().MatchBaseOids(ifName).Sort() {
+	for _, varBind := range pdu.VarBinds().MatchBaseOids(ifName) {
 		// get interface number and name
 		if len(varBind.Oid.Value) != ifNameDepth+1 {
 			continue
@@ -233,6 +237,10 @@ func getIfTraffic(snmp *snmpgo.SNMP, info *ifInfo) error {
 func printHeader(info *ifInfo) {
 	var buf bytes.Buffer
 
+	if info.descr != "" {
+		buf.WriteString(info.descr)
+		buf.WriteString("\n")
+	}
 	for _, ifNum := range info.IfList {
 		buf.WriteString(fmt.Sprintf("%-23s ", info.IfName[ifNum]))
 	}
