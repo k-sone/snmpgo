@@ -1,8 +1,11 @@
 package snmpgo
 
 import (
+	"errors"
 	"fmt"
 )
+
+var UnsupportedOperation error = errors.New("Unsupported operation")
 
 // An ArgumentError suggests that the arguments are wrong
 type ArgumentError struct {

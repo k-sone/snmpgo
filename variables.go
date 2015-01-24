@@ -3,7 +3,6 @@ package snmpgo
 import (
 	"bytes"
 	"encoding/asn1"
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -56,7 +55,7 @@ type OctetString struct {
 }
 
 func (v *OctetString) BigInt() (*big.Int, error) {
-	return nil, errors.New("Unsupported operation")
+	return nil, UnsupportedOperation
 }
 
 func (v *OctetString) String() string {
@@ -87,7 +86,7 @@ func NewOctetString(b []byte) *OctetString {
 type Null struct{}
 
 func (v *Null) BigInt() (*big.Int, error) {
-	return nil, errors.New("Unsupported operation")
+	return nil, UnsupportedOperation
 }
 
 func (v *Null) String() string {
@@ -115,7 +114,7 @@ type Oid struct {
 }
 
 func (v *Oid) BigInt() (*big.Int, error) {
-	return nil, errors.New("Unsupported operation")
+	return nil, UnsupportedOperation
 }
 
 func (v *Oid) String() string {
