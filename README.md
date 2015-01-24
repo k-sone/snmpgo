@@ -19,7 +19,10 @@ Supported Message Types
 Examples
 --------
 
-SNMP V2c - GetRequest
+**[getv2.go](examples/getv2.go), [getv3.go](examples/getv3.go)**
+
+Example for sending a GetRequest.
+Explain how to use basic of the API.
 
 ```go
 package main
@@ -80,75 +83,31 @@ func main() {
 }
 ```
 
-SNMP V2c - V2Trap
+**[trapv2.go](examples/trapv2.go), [trapv3.go](examples/trapv3.go)**
 
-```go
-package main
+Example for sending a V2Trap.
+Explain how to build varbinds using API.
 
-import (
-    "fmt"
+**[multiget.go](examples/multiget.go)**
 
-    "github.com/k-sone/snmpgo"
-)
+Example for sending a GetRequest to multiple agents.
 
-func main() {
-    snmp, err := snmpgo.NewSNMP(snmpgo.SNMPArguments{
-        Version:   snmpgo.V2c,
-        Address:   "127.0.0.1:162",
-        Retries:   1,
-        Community: "public",
-    })
-    if err != nil {
-        // Failed to create snmpgo.SNMP object
-        fmt.Println(err)
-        return
-    }
+**[ifstat.go](examples/ifstat.go)**
 
-    if err = snmp.Open(); err != nil {
-        // Failed to open connection
-        fmt.Println(err)
-        return
-    }
-    defer snmp.Close()
+This command displays the traffic of agent at regular intervals.
+Explain how to process the obtained information.
 
-    // Build VarBind list
-    var varBinds snmpgo.VarBinds
-    varBinds = append(varBinds, snmpgo.NewVarBind(snmpgo.OidSysUpTime, snmpgo.NewTimeTicks(1000)))
+**[snmpgoget.go](examples/snmpgoget.go)**
 
-    oid, _ := snmpgo.NewOid("1.3.6.1.6.3.1.1.5.3")
-    varBinds = append(varBinds, snmpgo.NewVarBind(snmpgo.OidSnmpTrap, oid))
+[snmpget@Net-SNMP](http://www.net-snmp.org/docs/man/snmpget.html) like command.
 
-    oid, _ = snmpgo.NewOid("1.3.6.1.2.1.2.2.1.1.2")
-    varBinds = append(varBinds, snmpgo.NewVarBind(oid, snmpgo.NewInteger(2)))
+**[snmpgobulkwalk.go](examples/snmpgobulkwalk.go)**
 
-    oid, _ = snmpgo.NewOid("1.3.6.1.2.1.31.1.1.1.1.2")
-    varBinds = append(varBinds, snmpgo.NewVarBind(oid, snmpgo.NewOctetString([]byte("eth0"))))
+[snmpbulkwalk@Net-SNMP](http://www.net-snmp.org/docs/man/snmpbulkwalk.html) like command.
 
-    if err = snmp.V2Trap(varBinds); err != nil {
-        // Failed to request
-        fmt.Println(err)
-        return
-    }
-}
-```
+**[snmpgotrap.go](examples/snmpgotrap.go)**
 
-SNMP V3 - XXXX
-
-```go
-    ...
-    snmp, err := snmpgo.NewSNMP(snmpgo.SNMPArguments{
-        Version:       snmpgo.V3,
-        Address:       "127.0.0.1:161",
-        Retries:       1,
-        UserName:      "MyName",
-        SecurityLevel: snmpgo.AuthPriv,
-        AuthPassword:  "aaaaaaaa",
-        AuthProtocol:  snmpgo.Sha,
-        PrivPassword:  "bbbbbbbb",
-        PrivProtocol:  snmpgo.Aes,
-    })
-    ...
-```
+[snmptrap@Net-SNMP](http://www.net-snmp.org/docs/man/snmptrap.html) like command.
 
 License
 -------
