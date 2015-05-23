@@ -420,7 +420,7 @@ func decrypt(msg *messageV3, proto PrivProtocol, key, privParam []byte) (err err
 	}
 	if raw.Class != classUniversal || raw.Tag != tagOctetString || raw.IsCompound {
 		return asn1.StructuralError{fmt.Sprintf(
-			"Invalid encryptedaPdu  object - Class [%02x], Tag [%02x] : [%s]",
+			"Invalid encrypted Pdu object - Class [%02x], Tag [%02x] : [%s]",
 			raw.Class, raw.Tag, toHexStr(msg.PduBytes(), " "))}
 	}
 
