@@ -179,12 +179,22 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 				0, math.MaxInt32, rm.AuthEngineTime),
 		}
 	}
-	if !bytes.Equal(sm.UserName, rm.UserName) {
-		return ResponseError{
-			Message: fmt.Sprintf(
-				"UserName mismatch - expected [%s], actual[%s]",
-				string(sm.UserName), string(rm.UserName)),
-			Detail: fmt.Sprintf("%s vs %s", sm, rm),
+	if u.DiscoveryStatus > noDiscovered {
+		if !bytes.Equal(sm.AuthEngineId, rm.AuthEngineId) {
+			return ResponseError{
+				Message: fmt.Sprintf(
+					"AuthEngineId mismatch - expected [%s], actual [%s]",
+					toHexStr(sm.AuthEngineId, ""), toHexStr(rm.AuthEngineId, "")),
+				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+			}
+		}
+		if !bytes.Equal(sm.UserName, rm.UserName) {
+			return ResponseError{
+				Message: fmt.Sprintf(
+					"UserName mismatch - expected [%s], actual [%s]",
+					string(sm.UserName), string(rm.UserName)),
+				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+			}
 		}
 	}
 

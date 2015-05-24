@@ -181,6 +181,7 @@ func TestMessageProcessingV3(t *testing.T) {
 	}
 	msgv3.SetAuthentication(false)
 	msgv3.SetPrivacy(false)
+	msgv3.AuthEngineId = []byte{0, 0, 0, 0, 0}
 	requestId := pdu.RequestId()
 	messageId := msgv3.MessageId
 

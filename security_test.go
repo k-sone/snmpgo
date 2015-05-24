@@ -216,7 +216,7 @@ func TestUsm(t *testing.T) {
 	rmsg.SetAuthentication(true)
 	rmsg.SetPrivacy(true)
 	rmsg.SetPduBytes(smsg.PduBytes())
-	rmsg.AuthEngineId = expEngId
+	rmsg.AuthEngineId = []byte("foobar")
 	rmsg.AuthEngineBoots = smsg.AuthEngineBoots
 	rmsg.AuthEngineTime = smsg.AuthEngineTime
 	rmsg.PrivParameter = smsg.PrivParameter
@@ -228,6 +228,12 @@ func TestUsm(t *testing.T) {
 	}
 
 	rmsg.UserName = expUser
+	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	if err == nil {
+		t.Error("ProcessIncomingMessage() - authEngine check")
+	}
+
+	rmsg.AuthEngineId = expEngId
 	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
 	if err != nil {
 		t.Errorf("ProcessIncomingMessage() - has error %v", err)
