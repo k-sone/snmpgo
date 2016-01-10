@@ -369,7 +369,7 @@ func (mp *messageProcessingV1) PrepareDataElements(
 	recvMsg := newMessage(snmp.args.Version, pdu)
 	_, err = recvMsg.Unmarshal(b)
 	if err != nil {
-		return nil, ResponseError{
+		return nil, &ResponseError{
 			Cause:   err,
 			Message: "Failed to Unmarshal message",
 			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(b, " ")),
@@ -377,7 +377,7 @@ func (mp *messageProcessingV1) PrepareDataElements(
 	}
 
 	if sendMsg.Version() != recvMsg.Version() {
-		return nil, ResponseError{
+		return nil, &ResponseError{
 			Message: fmt.Sprintf(
 				"SNMPVersion mismatch - expected [%v], actual [%v]",
 				sendMsg.Version(), recvMsg.Version()),
@@ -391,13 +391,13 @@ func (mp *messageProcessingV1) PrepareDataElements(
 	}
 
 	if recvMsg.Pdu().PduType() != GetResponse {
-		return nil, ResponseError{
+		return nil, &ResponseError{
 			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]",
 				GetResponse, recvMsg.Pdu().PduType()),
 		}
 	}
 	if sendMsg.Pdu().RequestId() != recvMsg.Pdu().RequestId() {
-		return nil, ResponseError{
+		return nil, &ResponseError{
 			Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
 				sendMsg.Pdu().RequestId(), recvMsg.Pdu().RequestId()),
 			Detail: fmt.Sprintf("%s vs %s", sendMsg, recvMsg),
@@ -443,7 +443,7 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	recvMsg := newMessage(snmp.args.Version, pdu)
 	_, err = recvMsg.Unmarshal(b)
 	if err != nil {
-		return nil, ResponseError{
+		return nil, &ResponseError{
 			Cause:   err,
 			Message: "Failed to Unmarshal message",
 			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(b, " ")),
@@ -453,21 +453,21 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	sm := sendMsg.(*messageV3)
 	rm := recvMsg.(*messageV3)
 	if sm.Version() != rm.Version() {
-		return nil, ResponseError{
+		return nil, &ResponseError{
 			Message: fmt.Sprintf(
 				"SNMPVersion mismatch - expected [%v], actual [%v]", sm.Version(), rm.Version()),
 			Detail: fmt.Sprintf("%s vs %s", sm, rm),
 		}
 	}
 	if sm.MessageId != rm.MessageId {
-		return nil, ResponseError{
+		return nil, &ResponseError{
 			Message: fmt.Sprintf(
 				"MessageId mismatch - expected [%d], actual [%d]", sm.MessageId, rm.MessageId),
 			Detail: fmt.Sprintf("%s vs %s", sm, rm),
 		}
 	}
 	if rm.SecurityModel != securityUsm {
-		return nil, ResponseError{
+		return nil, &ResponseError{
 			Message: fmt.Sprintf("Unknown SecurityModel, value [%d]", rm.SecurityModel),
 		}
 	}
@@ -480,7 +480,7 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	switch t := rm.Pdu().PduType(); t {
 	case GetResponse:
 		if sm.Pdu().RequestId() != rm.Pdu().RequestId() {
-			return nil, ResponseError{
+			return nil, &ResponseError{
 				Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
 					sm.Pdu().RequestId(), rm.Pdu().RequestId()),
 				Detail: fmt.Sprintf("%s vs %s", sm, rm),
@@ -492,7 +492,7 @@ func (mp *messageProcessingV3) PrepareDataElements(
 		}
 		fallthrough
 	default:
-		return nil, ResponseError{
+		return nil, &ResponseError{
 			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]", GetResponse, t),
 		}
 	}

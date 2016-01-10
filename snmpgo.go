@@ -41,14 +41,14 @@ func (a *SNMPArguments) setDefault() {
 
 func (a *SNMPArguments) validate() error {
 	if v := a.Version; v != V1 && v != V2c && v != V3 {
-		return ArgumentError{
+		return &ArgumentError{
 			Value:   v,
 			Message: "Unknown SNMP Version",
 		}
 	}
 	// RFC3412 Section 6
 	if m := a.MessageMaxSize; (m != 0 && m < msgSizeMinimum) || m > math.MaxInt32 {
-		return ArgumentError{
+		return &ArgumentError{
 			Value: m,
 			Message: fmt.Sprintf("MessageMaxSize is range %d..%d",
 				msgSizeMinimum, math.MaxInt32),
@@ -57,7 +57,7 @@ func (a *SNMPArguments) validate() error {
 	if a.Version == V3 {
 		// RFC3414 Section 5
 		if l := len(a.UserName); l < 1 || l > 32 {
-			return ArgumentError{
+			return &ArgumentError{
 				Value:   a.UserName,
 				Message: "UserName length is range 1..32",
 			}
@@ -65,13 +65,13 @@ func (a *SNMPArguments) validate() error {
 		if a.SecurityLevel > NoAuthNoPriv {
 			// RFC3414 Section 11.2
 			if len(a.AuthPassword) < 8 {
-				return ArgumentError{
+				return &ArgumentError{
 					Value:   a.AuthPassword,
 					Message: "AuthPassword is at least 8 characters in length",
 				}
 			}
 			if p := a.AuthProtocol; p != Md5 && p != Sha {
-				return ArgumentError{
+				return &ArgumentError{
 					Value:   a.AuthProtocol,
 					Message: "Illegal AuthProtocol",
 				}
@@ -80,13 +80,13 @@ func (a *SNMPArguments) validate() error {
 		if a.SecurityLevel > AuthNoPriv {
 			// RFC3414 Section 11.2
 			if len(a.PrivPassword) < 8 {
-				return ArgumentError{
+				return &ArgumentError{
 					Value:   a.PrivPassword,
 					Message: "PrivPassword is at least 8 characters in length",
 				}
 			}
 			if p := a.PrivProtocol; p != Des && p != Aes {
-				return ArgumentError{
+				return &ArgumentError{
 					Value:   a.PrivProtocol,
 					Message: "Illegal PrivProtocol",
 				}
@@ -181,20 +181,20 @@ func (s *SNMP) GetNextRequest(oids Oids) (result Pdu, err error) {
 func (s *SNMP) GetBulkRequest(oids Oids, nonRepeaters, maxRepetitions int) (result Pdu, err error) {
 
 	if s.args.Version < V2c {
-		return nil, ArgumentError{
+		return nil, &ArgumentError{
 			Value:   s.args.Version,
 			Message: "Unsupported SNMP Version",
 		}
 	}
 	// RFC 3416 Section 3
 	if nonRepeaters < 0 || nonRepeaters > math.MaxInt32 {
-		return nil, ArgumentError{
+		return nil, &ArgumentError{
 			Value:   nonRepeaters,
 			Message: fmt.Sprintf("NonRepeaters is range %d..%d", 0, math.MaxInt32),
 		}
 	}
 	if maxRepetitions < 0 || maxRepetitions > math.MaxInt32 {
-		return nil, ArgumentError{
+		return nil, &ArgumentError{
 			Value:   maxRepetitions,
 			Message: fmt.Sprintf("NonRepeaters is range %d..%d", 0, math.MaxInt32),
 		}
@@ -292,7 +292,7 @@ func (s *SNMP) InformRequest(varBinds VarBinds) error {
 
 func (s *SNMP) v2trap(pduType PduType, varBinds VarBinds) (err error) {
 	if s.args.Version < V2c {
-		return ArgumentError{
+		return &ArgumentError{
 			Value:   s.args.Version,
 			Message: "Unsupported SNMP Version",
 		}
@@ -355,13 +355,13 @@ func (s *SNMP) checkPdu(pdu Pdu) (err error) {
 	if s.args.Version == V3 && pdu.PduType() == Report && len(varBinds) > 0 {
 		oid := varBinds[0].Oid.String()
 		rep := reportStatusOid(oid)
-		err = ResponseError{
+		err = &ResponseError{
 			Message: fmt.Sprintf("Received a report from the agent - %s(%s)", rep, oid),
 			Detail:  fmt.Sprintf("Pdu - %s", pdu),
 		}
 		// perhaps the agent has rebooted after the previous communication
 		if rep == usmStatsNotInTimeWindows {
-			err = notInTimeWindowError{err.(ResponseError)}
+			err = &notInTimeWindowError{err.(*ResponseError)}
 		}
 	}
 	return

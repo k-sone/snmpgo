@@ -200,7 +200,7 @@ func NewOid(s string) (oid *Oid, err error) {
 
 	// RFC2578 Section 3.5
 	if len(subids) > 128 {
-		return nil, ArgumentError{
+		return nil, &ArgumentError{
 			Value:   s,
 			Message: "The sub-identifiers in an OID is up to 128",
 		}
@@ -210,7 +210,7 @@ func NewOid(s string) (oid *Oid, err error) {
 	for i, v := range subids {
 		o[i], err = strconv.Atoi(v)
 		if err != nil || o[i] < 0 || o[i] > math.MaxUint32 {
-			return nil, ArgumentError{
+			return nil, &ArgumentError{
 				Value:   s,
 				Message: fmt.Sprintf("The sub-identifiers is range %d..%d", 0, math.MaxUint32),
 			}
@@ -218,7 +218,7 @@ func NewOid(s string) (oid *Oid, err error) {
 	}
 
 	if len(o) > 0 && o[0] > 2 {
-		return nil, ArgumentError{
+		return nil, &ArgumentError{
 			Value:   s,
 			Message: "The first sub-identifier is range 0..2",
 		}
@@ -226,14 +226,14 @@ func NewOid(s string) (oid *Oid, err error) {
 
 	// ISO/IEC 8825 Section 8.19.4
 	if len(o) < 2 {
-		return nil, ArgumentError{
+		return nil, &ArgumentError{
 			Value:   s,
 			Message: "The first and second sub-identifier is required",
 		}
 	}
 
 	if o[0] < 2 && o[1] >= 40 {
-		return nil, ArgumentError{
+		return nil, &ArgumentError{
 			Value:   s,
 			Message: "The second sub-identifier is range 0..39",
 		}
