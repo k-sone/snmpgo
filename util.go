@@ -54,13 +54,13 @@ func genMessageId() (id int) {
 func retry(retries int, f func() error) (err error) {
 	for i := 0; i <= retries; i++ {
 		err = f()
-		switch err.(type) {
+		switch e := err.(type) {
 		case net.Error:
-			if err.(net.Error).Timeout() {
+			if e.Timeout() {
 				continue
 			}
-		case notInTimeWindowError:
-			err = err.(notInTimeWindowError).ResponseError
+		case *notInTimeWindowError:
+			err = e.ResponseError
 			continue
 		}
 		return
@@ -79,7 +79,7 @@ func confirmedType(t PduType) bool {
 func engineIdToBytes(engineId string) ([]byte, error) {
 	b, err := hex.DecodeString(engineId)
 	if l := len(b); err != nil || (l < 5 || l > 32) {
-		return nil, ArgumentError{
+		return nil, &ArgumentError{
 			Value:   engineId,
 			Message: "EngineId must be a hexadecimal string and length is range 5..32",
 		}

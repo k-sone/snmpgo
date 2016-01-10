@@ -43,7 +43,7 @@ func (c *community) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message)
 	rm := recvMsg.(*messageV1)
 
 	if !bytes.Equal(sm.Community, rm.Community) {
-		return ResponseError{
+		return &ResponseError{
 			Message: fmt.Sprintf(
 				"Community mismatch - expected [%s], actual [%s]",
 				string(sm.Community), string(rm.Community)),
@@ -53,7 +53,7 @@ func (c *community) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message)
 
 	_, err = rm.Pdu().Unmarshal(rm.PduBytes())
 	if err != nil {
-		return ResponseError{
+		return &ResponseError{
 			Cause:   err,
 			Message: "Failed to Unmarshal Pdu",
 			Detail:  fmt.Sprintf("Pdu Bytes - [%s]", toHexStr(rm.PduBytes(), " ")),
@@ -162,26 +162,26 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 
 	// RFC3411 Section 5
 	if l := len(rm.AuthEngineId); l < 5 || l > 32 {
-		return ResponseError{
+		return &ResponseError{
 			Message: fmt.Sprintf("AuthEngineId length is range 5..32, value [%s]",
 				toHexStr(rm.AuthEngineId, "")),
 		}
 	}
 	if rm.AuthEngineBoots < 0 || rm.AuthEngineBoots > math.MaxInt32 {
-		return ResponseError{
+		return &ResponseError{
 			Message: fmt.Sprintf("AuthEngineBoots is range %d..%d, value [%d]",
 				0, math.MaxInt32, rm.AuthEngineBoots),
 		}
 	}
 	if rm.AuthEngineTime < 0 || rm.AuthEngineTime > math.MaxInt32 {
-		return ResponseError{
+		return &ResponseError{
 			Message: fmt.Sprintf("AuthEngineTime is range %d..%d, value [%d]",
 				0, math.MaxInt32, rm.AuthEngineTime),
 		}
 	}
 	if u.DiscoveryStatus > noDiscovered {
 		if !bytes.Equal(sm.AuthEngineId, rm.AuthEngineId) {
-			return ResponseError{
+			return &ResponseError{
 				Message: fmt.Sprintf(
 					"AuthEngineId mismatch - expected [%s], actual [%s]",
 					toHexStr(sm.AuthEngineId, ""), toHexStr(rm.AuthEngineId, "")),
@@ -189,7 +189,7 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 			}
 		}
 		if !bytes.Equal(sm.UserName, rm.UserName) {
-			return ResponseError{
+			return &ResponseError{
 				Message: fmt.Sprintf(
 					"UserName mismatch - expected [%s], actual [%s]",
 					string(sm.UserName), string(rm.UserName)),
@@ -202,13 +202,13 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 		// get & check digest of whole message
 		digest, e := mac(rm, snmp.args.AuthProtocol, u.AuthKey)
 		if e != nil {
-			return ResponseError{
+			return &ResponseError{
 				Cause:   e,
 				Message: "Can't get a message digest",
 			}
 		}
 		if !hmac.Equal(rm.AuthParameter, digest) {
-			return ResponseError{
+			return &ResponseError{
 				Message: fmt.Sprintf("Failed to authenticate - expected [%s], actual [%s]",
 					toHexStr(rm.AuthParameter, ""), toHexStr(digest, "")),
 			}
@@ -218,7 +218,7 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 		if rm.Privacy() {
 			e := decrypt(rm, snmp.args.PrivProtocol, u.PrivKey, rm.PrivParameter)
 			if e != nil {
-				return ResponseError{
+				return &ResponseError{
 					Cause:   e,
 					Message: "Can't decrypt a message",
 				}
@@ -254,7 +254,7 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 		if rm.Privacy() {
 			note = " (probably Pdu was unable to decrypt)"
 		}
-		return ResponseError{
+		return &ResponseError{
 			Cause:   err,
 			Message: fmt.Sprintf("Failed to Unmarshal Pdu%s", note),
 			Detail:  fmt.Sprintf("Pdu Bytes - [%s]", toHexStr(rm.PduBytes(), " ")),
@@ -270,19 +270,19 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 			cxtId = u.AuthEngineId
 		}
 		if !bytes.Equal(cxtId, p.ContextEngineId) {
-			return ResponseError{
+			return &ResponseError{
 				Message: fmt.Sprintf("ContextEngineId mismatch - expected [%s], actual [%s]",
 					toHexStr(cxtId, ""), toHexStr(p.ContextEngineId, "")),
 			}
 		}
 		if name := snmp.args.ContextName; name != string(p.ContextName) {
-			return ResponseError{
+			return &ResponseError{
 				Message: fmt.Sprintf("ContextName mismatch - expected [%s], actual [%s]",
 					name, string(p.ContextName)),
 			}
 		}
 		if sm.Authentication() && !rm.Authentication() {
-			return ResponseError{
+			return &ResponseError{
 				Message: "Response message is not authenticated",
 			}
 		}
@@ -360,7 +360,7 @@ func (u *usm) CheckTimeliness(engineBoots, engineTime int64) error {
 	if engineBoots == math.MaxInt32 ||
 		engineBoots < u.AuthEngineBoots ||
 		(engineBoots == u.AuthEngineBoots && engineTime-u.AuthEngineTime > 150) {
-		return ResponseError{
+		return &ResponseError{
 			Message: fmt.Sprintf(
 				"The message is not in the time window - local [%d/%d], remote [%d/%d]",
 				engineBoots, engineTime, u.AuthEngineBoots, u.AuthEngineTime),
@@ -473,14 +473,14 @@ func encryptDES(src, key []byte, engineBoots, salt int32) (dst, privParam []byte
 func decryptDES(src, key, privParam []byte) (dst []byte, err error) {
 
 	if len(src)%des.BlockSize != 0 {
-		err = ArgumentError{
+		err = &ArgumentError{
 			Value:   len(src),
 			Message: "Invalid DES cipher length",
 		}
 		return
 	}
 	if len(privParam) != 8 {
-		err = ArgumentError{
+		err = &ArgumentError{
 			Value:   len(privParam),
 			Message: "Invalid DES PrivParameter length",
 		}
@@ -528,7 +528,7 @@ func decryptAES(src, key, privParam []byte, engineBoots, engineTime int32) (
 	dst []byte, err error) {
 
 	if len(privParam) != 8 {
-		err = ArgumentError{
+		err = &ArgumentError{
 			Value:   len(privParam),
 			Message: "Invalid AES PrivParameter length",
 		}

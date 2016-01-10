@@ -13,7 +13,7 @@ type ArgumentError struct {
 	Message string      // Error message
 }
 
-func (e ArgumentError) Error() string {
+func (e *ArgumentError) Error() string {
 	return fmt.Sprintf("%s, value `%v`", e.Message, e.Value)
 }
 
@@ -24,7 +24,7 @@ type ResponseError struct {
 	Detail  string // Detail of the error for debugging
 }
 
-func (e ResponseError) Error() string {
+func (e *ResponseError) Error() string {
 	if e.Cause == nil {
 		return e.Message
 	} else {
@@ -33,5 +33,5 @@ func (e ResponseError) Error() string {
 }
 
 type notInTimeWindowError struct {
-	ResponseError
+	*ResponseError
 }
