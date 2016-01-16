@@ -11,6 +11,8 @@ func SnmpCheckPdu(snmp *SNMP, pdu Pdu) error { return snmp.checkPdu(pdu) }
 
 // For message testing
 var NewMessage = newMessage
+var UnmarshalMessage = unmarshalMessage
+var NewMessageWithPdu = newMessageWithPdu
 var NewMessageProcessing = newMessageProcessing
 
 func ToMessageV1(msg message) *messageV1 { return msg.(*messageV1) }

@@ -77,7 +77,7 @@ func TestCommunity(t *testing.T) {
 	sec := snmpgo.NewCommunity()
 	sec.Community = []byte(expCom)
 	pdu := snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetRequest)
-	smsg := snmpgo.ToMessageV1(snmpgo.NewMessage(snmpgo.V2c, pdu))
+	smsg := snmpgo.ToMessageV1(snmpgo.NewMessageWithPdu(snmpgo.V2c, pdu))
 
 	err := sec.GenerateRequestMessage(smsg)
 	if err != nil {
@@ -91,7 +91,7 @@ func TestCommunity(t *testing.T) {
 	}
 
 	pdu = snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetResponse)
-	rmsg := snmpgo.ToMessageV1(snmpgo.NewMessage(snmpgo.V2c, pdu))
+	rmsg := snmpgo.ToMessageV1(snmpgo.NewMessageWithPdu(snmpgo.V2c, pdu))
 
 	err = sec.ProcessIncomingMessage(rmsg)
 	if err == nil {
@@ -117,7 +117,7 @@ func TestUsm(t *testing.T) {
 	sec.PrivProtocol = snmpgo.Des
 	pdu := snmpgo.NewPdu(snmpgo.V3, snmpgo.GetRequest)
 	spdu := pdu.(*snmpgo.ScopedPdu)
-	smsg := snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
+	smsg := snmpgo.ToMessageV3(snmpgo.NewMessageWithPdu(snmpgo.V3, pdu))
 	smsg.SetAuthentication(false)
 	smsg.SetPrivacy(false)
 
@@ -131,7 +131,7 @@ func TestUsm(t *testing.T) {
 	}
 
 	pdu = snmpgo.NewPdu(snmpgo.V3, snmpgo.Report)
-	rmsg := snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
+	rmsg := snmpgo.ToMessageV3(snmpgo.NewMessageWithPdu(snmpgo.V3, pdu))
 	rmsg.SetPduBytes(smsg.PduBytes())
 	err = sec.ProcessIncomingMessage(rmsg)
 	if err == nil {
@@ -192,7 +192,7 @@ func TestUsm(t *testing.T) {
 	}
 
 	pdu = snmpgo.NewPdu(snmpgo.V3, snmpgo.Report)
-	rmsg = snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
+	rmsg = snmpgo.ToMessageV3(snmpgo.NewMessageWithPdu(snmpgo.V3, pdu))
 	rmsg.SetAuthentication(true)
 	rmsg.SetPrivacy(true)
 	rmsg.SetPduBytes(smsg.PduBytes())
@@ -244,7 +244,7 @@ func TestUsm(t *testing.T) {
 
 	pdu = snmpgo.NewPdu(snmpgo.V3, snmpgo.GetResponse)
 	spdu = pdu.(*snmpgo.ScopedPdu)
-	rmsg = snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
+	rmsg = snmpgo.ToMessageV3(snmpgo.NewMessageWithPdu(snmpgo.V3, pdu))
 	rmsg.AuthEngineId = expEngId
 	rmsg.AuthEngineBoots = smsg.AuthEngineBoots
 	rmsg.AuthEngineTime = smsg.AuthEngineTime

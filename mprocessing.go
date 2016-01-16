@@ -30,7 +30,7 @@ func (mp *messageProcessingV1) PrepareOutgoingMessage(
 		}
 	}
 	pdu.SetRequestId(genRequestId())
-	msg = newMessage(snmp.args.Version, pdu)
+	msg = newMessageWithPdu(snmp.args.Version, pdu)
 
 	err = mp.security.GenerateRequestMessage(msg)
 	return
@@ -40,7 +40,7 @@ func (mp *messageProcessingV1) PrepareDataElements(
 	snmp *SNMP, sendMsg message, b []byte) (Pdu, error) {
 
 	pdu := &PduV1{}
-	recvMsg := newMessage(snmp.args.Version, pdu)
+	recvMsg := newMessageWithPdu(snmp.args.Version, pdu)
 	_, err := recvMsg.Unmarshal(b)
 	if err != nil {
 		return nil, &ResponseError{
@@ -108,7 +108,7 @@ func (mp *messageProcessingV3) PrepareOutgoingMessage(
 		p.ContextName = []byte(snmp.args.ContextName)
 	}
 
-	msg = newMessage(snmp.args.Version, pdu)
+	msg = newMessageWithPdu(snmp.args.Version, pdu)
 	m := msg.(*messageV3)
 	m.MessageId = genMessageId()
 	m.MessageMaxSize = snmp.args.MessageMaxSize
@@ -129,7 +129,7 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	snmp *SNMP, sendMsg message, b []byte) (Pdu, error) {
 
 	pdu := &ScopedPdu{}
-	recvMsg := newMessage(snmp.args.Version, pdu)
+	recvMsg := newMessageWithPdu(snmp.args.Version, pdu)
 	_, err := recvMsg.Unmarshal(b)
 	if err != nil {
 		return nil, &ResponseError{
