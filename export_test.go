@@ -2,6 +2,8 @@ package snmpgo
 
 var StripHexPrefix = stripHexPrefix
 var ToHexStr = toHexStr
+var Retry = retry
+var NewNotInTimeWindowError = func() error { return &notInTimeWindowError{&ResponseError{}} }
 
 // For snmpgo testing
 func ArgsValidate(args *SNMPArguments) error { return args.validate() }
