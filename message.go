@@ -1,6 +1,7 @@
 package snmpgo
 
 import (
+	"bytes"
 	"encoding/asn1"
 	"fmt"
 )
@@ -345,7 +346,7 @@ type messageProcessing interface {
 }
 
 type messageProcessingV1 struct {
-	security security
+	security *community
 }
 
 func (mp *messageProcessingV1) Security() security {
@@ -355,6 +356,14 @@ func (mp *messageProcessingV1) Security() security {
 func (mp *messageProcessingV1) PrepareOutgoingMessage(
 	snmp *SNMP, pdu Pdu) (msg message, err error) {
 
+	_, ok := pdu.(*PduV1)
+	if !ok {
+		return nil, &ArgumentError{
+			Value:   pdu,
+			Message: "Type of Pdu is not PduV1",
+		}
+	}
+
 	pdu.SetRequestId(genRequestId())
 	msg = newMessage(snmp.args.Version, pdu)
 
@@ -363,11 +372,11 @@ func (mp *messageProcessingV1) PrepareOutgoingMessage(
 }
 
 func (mp *messageProcessingV1) PrepareDataElements(
-	snmp *SNMP, sendMsg message, b []byte) (pdu Pdu, err error) {
+	snmp *SNMP, sendMsg message, b []byte) (Pdu, error) {
 
-	pdu = &PduV1{}
+	pdu := &PduV1{}
 	recvMsg := newMessage(snmp.args.Version, pdu)
-	_, err = recvMsg.Unmarshal(b)
+	_, err := recvMsg.Unmarshal(b)
 	if err != nil {
 		return nil, &ResponseError{
 			Cause:   err,
@@ -390,24 +399,24 @@ func (mp *messageProcessingV1) PrepareDataElements(
 		return nil, err
 	}
 
-	if recvMsg.Pdu().PduType() != GetResponse {
+	if pdu.PduType() != GetResponse {
 		return nil, &ResponseError{
 			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]",
-				GetResponse, recvMsg.Pdu().PduType()),
+				GetResponse, pdu.PduType()),
 		}
 	}
-	if sendMsg.Pdu().RequestId() != recvMsg.Pdu().RequestId() {
+	if sendMsg.Pdu().RequestId() != pdu.RequestId() {
 		return nil, &ResponseError{
 			Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
-				sendMsg.Pdu().RequestId(), recvMsg.Pdu().RequestId()),
+				sendMsg.Pdu().RequestId(), pdu.RequestId()),
 			Detail: fmt.Sprintf("%s vs %s", sendMsg, recvMsg),
 		}
 	}
-	return
+	return pdu, nil
 }
 
 type messageProcessingV3 struct {
-	security security
+	security *usm
 }
 
 func (mp *messageProcessingV3) Security() security {
@@ -417,9 +426,25 @@ func (mp *messageProcessingV3) Security() security {
 func (mp *messageProcessingV3) PrepareOutgoingMessage(
 	snmp *SNMP, pdu Pdu) (msg message, err error) {
 
-	pdu.SetRequestId(genRequestId())
-	msg = newMessage(snmp.args.Version, pdu)
+	p, ok := pdu.(*ScopedPdu)
+	if !ok {
+		return nil, &ArgumentError{
+			Value:   pdu,
+			Message: "Type of Pdu is not ScopedPdu",
+		}
+	}
+	p.SetRequestId(genRequestId())
+	if snmp.args.ContextEngineId != "" {
+		p.ContextEngineId, _ = engineIdToBytes(snmp.args.ContextEngineId)
+	} else {
+		p.ContextEngineId = mp.security.AuthEngineId
+	}
 
+	if snmp.args.ContextName != "" {
+		p.ContextName = []byte(snmp.args.ContextName)
+	}
+
+	msg = newMessage(snmp.args.Version, pdu)
 	m := msg.(*messageV3)
 	m.MessageId = genMessageId()
 	m.MessageMaxSize = snmp.args.MessageMaxSize
@@ -437,11 +462,11 @@ func (mp *messageProcessingV3) PrepareOutgoingMessage(
 }
 
 func (mp *messageProcessingV3) PrepareDataElements(
-	snmp *SNMP, sendMsg message, b []byte) (pdu Pdu, err error) {
+	snmp *SNMP, sendMsg message, b []byte) (Pdu, error) {
 
-	pdu = &ScopedPdu{}
+	pdu := &ScopedPdu{}
 	recvMsg := newMessage(snmp.args.Version, pdu)
-	_, err = recvMsg.Unmarshal(b)
+	_, err := recvMsg.Unmarshal(b)
 	if err != nil {
 		return nil, &ResponseError{
 			Cause:   err,
@@ -477,13 +502,34 @@ func (mp *messageProcessingV3) PrepareDataElements(
 		return nil, err
 	}
 
-	switch t := rm.Pdu().PduType(); t {
+	switch t := pdu.PduType(); t {
 	case GetResponse:
-		if sm.Pdu().RequestId() != rm.Pdu().RequestId() {
+		if sm.Pdu().RequestId() != pdu.RequestId() {
 			return nil, &ResponseError{
 				Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
-					sm.Pdu().RequestId(), rm.Pdu().RequestId()),
+					sm.Pdu().RequestId(), pdu.RequestId()),
 				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+			}
+		}
+
+		sPdu := sm.Pdu().(*ScopedPdu)
+		if !bytes.Equal(sPdu.ContextEngineId, pdu.ContextEngineId) {
+			return nil, &ResponseError{
+				Message: fmt.Sprintf("ContextEngineId mismatch - expected [%s], actual [%s]",
+					toHexStr(sPdu.ContextEngineId, ""), toHexStr(pdu.ContextEngineId, "")),
+			}
+		}
+
+		if !bytes.Equal(sPdu.ContextName, pdu.ContextName) {
+			return nil, &ResponseError{
+				Message: fmt.Sprintf("ContextName mismatch - expected [%s], actual [%s]",
+					toHexStr(sPdu.ContextName, ""), toHexStr(pdu.ContextName, "")),
+			}
+		}
+
+		if sm.Authentication() && !rm.Authentication() {
+			return nil, &ResponseError{
+				Message: "Response message is not authenticated",
 			}
 		}
 	case Report:
@@ -497,7 +543,7 @@ func (mp *messageProcessingV3) PrepareDataElements(
 		}
 	}
 
-	return
+	return pdu, nil
 }
 
 func newMessageProcessing(ver SNMPVersion) (mp messageProcessing) {

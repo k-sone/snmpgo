@@ -2,7 +2,6 @@ package snmpgo_test
 
 import (
 	"bytes"
-	"encoding/hex"
 	"math"
 	"testing"
 	"time"
@@ -113,18 +112,14 @@ func TestCommunity(t *testing.T) {
 func TestUsm(t *testing.T) {
 	expUser := []byte("myUser")
 	expEngId := []byte{0x80, 0x00, 0x00, 0x00, 0x01}
-	expCtxId := []byte{0x80, 0x00, 0x00, 0x00, 0x05}
-	expCtxName := "myName"
 	snmp, _ := snmpgo.NewSNMP(snmpgo.SNMPArguments{
-		Version:         snmpgo.V3,
-		UserName:        string(expUser),
-		SecurityLevel:   snmpgo.AuthPriv,
-		AuthPassword:    "aaaaaaaa",
-		AuthProtocol:    snmpgo.Md5,
-		PrivPassword:    "bbbbbbbb",
-		PrivProtocol:    snmpgo.Des,
-		ContextEngineId: hex.EncodeToString(expCtxId),
-		ContextName:     expCtxName,
+		Version:       snmpgo.V3,
+		UserName:      string(expUser),
+		SecurityLevel: snmpgo.AuthPriv,
+		AuthPassword:  "aaaaaaaa",
+		AuthProtocol:  snmpgo.Md5,
+		PrivPassword:  "bbbbbbbb",
+		PrivProtocol:  snmpgo.Des,
 	})
 	sec := snmpgo.NewUsm()
 	pdu := snmpgo.NewPdu(snmpgo.V3, snmpgo.GetRequest)
@@ -137,14 +132,6 @@ func TestUsm(t *testing.T) {
 	err := sec.GenerateRequestMessage(snmp, smsg)
 	if err != nil {
 		t.Errorf("GenerateRequestMessage() - has error %v", err)
-	}
-	if !bytes.Equal(spdu.ContextEngineId, expCtxId) {
-		t.Errorf("GenerateRequestMessage() - expected [%s], actual [%s]",
-			expCtxId, spdu.ContextEngineId)
-	}
-	if string(spdu.ContextName) != expCtxName {
-		t.Errorf("GenerateRequestMessage() - expected [%s], actual [%s]",
-			expCtxName, string(spdu.ContextName))
 	}
 	if len(smsg.PduBytes()) == 0 {
 		t.Error("GenerateRequestMessage() - pdu marshal")
@@ -275,26 +262,8 @@ func TestUsm(t *testing.T) {
 	rmsg.SetPduBytes(b)
 
 	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
-	if err == nil {
-		t.Error("ProcessIncomingMessage() - contextEngineId check")
-	}
-
-	// set PduBytes with ContextEngineId
-	spdu.ContextEngineId = expCtxId
-	b, _ = spdu.Marshal()
-	rmsg.SetPduBytes(b)
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
-	if err == nil {
-		t.Error("ProcessIncomingMessage() - contextName check")
-	}
-
-	// set PduBytes with ContextName
-	spdu.ContextName = []byte(expCtxName)
-	b, _ = spdu.Marshal()
-	rmsg.SetPduBytes(b)
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
-	if err == nil {
-		t.Error("ProcessIncomingMessage() - response authenticate check")
+	if err != nil {
+		t.Error("ProcessIncomingMessage() - has error %v", err)
 	}
 }
 

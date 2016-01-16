@@ -2,6 +2,7 @@ package snmpgo_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 
 	"github.com/k-sone/snmpgo"
@@ -147,17 +148,23 @@ func TestMessageProcessingV1(t *testing.T) {
 }
 
 func TestMessageProcessingV3(t *testing.T) {
+	expEngId := []byte{0x80, 0x00, 0x00, 0x00, 0x01}
+	expCtxId := []byte{0x80, 0x00, 0x00, 0x00, 0x05}
+	expCtxName := "myName"
 	snmp, _ := snmpgo.NewSNMP(snmpgo.SNMPArguments{
-		Version:       snmpgo.V3,
-		UserName:      "myName",
-		SecurityLevel: snmpgo.AuthPriv,
-		AuthPassword:  "aaaaaaaa",
-		AuthProtocol:  snmpgo.Md5,
-		PrivPassword:  "bbbbbbbb",
-		PrivProtocol:  snmpgo.Des,
+		Version:         snmpgo.V3,
+		UserName:        "myName",
+		SecurityLevel:   snmpgo.AuthPriv,
+		AuthPassword:    "aaaaaaaa",
+		AuthProtocol:    snmpgo.Md5,
+		PrivPassword:    "bbbbbbbb",
+		PrivProtocol:    snmpgo.Des,
+		ContextEngineId: hex.EncodeToString(expCtxId),
+		ContextName:     expCtxName,
 	})
 	mp := snmpgo.NewMessageProcessing(snmpgo.V3)
 	usm := snmpgo.ToUsm(mp.Security())
+	usm.AuthEngineId = expEngId
 	usm.AuthKey = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	usm.PrivKey = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	pdu := snmpgo.NewPdu(snmpgo.V3, snmpgo.GetRequest)
@@ -169,8 +176,17 @@ func TestMessageProcessingV3(t *testing.T) {
 	if len(msg.PduBytes()) == 0 {
 		t.Error("PrepareOutgoingMessage() - pdu bytes")
 	}
-	if pdu.RequestId() == 0 {
+	p := pdu.(*snmpgo.ScopedPdu)
+	if p.RequestId() == 0 {
 		t.Error("PrepareOutgoingMessage() - request id")
+	}
+	if !bytes.Equal(p.ContextEngineId, expCtxId) {
+		t.Errorf("PrepareOutgoingMessage() - expected [%s], actual [%s]",
+			snmpgo.ToHexStr(expCtxId, ""), snmpgo.ToHexStr(p.ContextEngineId, ""))
+	}
+	if string(p.ContextName) != expCtxName {
+		t.Errorf("GenerateRequestMessage() - expected [%s], actual [%s]",
+			expCtxName, string(p.ContextName))
 	}
 	msgv3 := snmpgo.ToMessageV3(msg)
 	if msgv3.MessageId == 0 {
@@ -213,7 +229,6 @@ func TestMessageProcessingV3(t *testing.T) {
 		t.Error("PrepareDataElements() - security model check")
 	}
 
-	pdu.(*snmpgo.ScopedPdu).ContextEngineId = rmsg.AuthEngineId
 	pduBytes, _ := pdu.Marshal()
 	rmsg.SetPduBytes(pduBytes)
 	rmsg.SecurityModel = 3
@@ -227,6 +242,32 @@ func TestMessageProcessingV3(t *testing.T) {
 	pduBytes, _ = pdu.Marshal()
 	rmsg.SetPduBytes(pduBytes)
 	b, _ = rmsg.Marshal()
+	_, err = mp.PrepareDataElements(snmp, msg, b)
+	if err == nil {
+		t.Errorf("PrepareDataElements() - contextEngineId check")
+	}
+
+	pdu.(*snmpgo.ScopedPdu).ContextEngineId = expCtxId
+	pduBytes, _ = pdu.Marshal()
+	rmsg.SetPduBytes(pduBytes)
+	b, _ = rmsg.Marshal()
+	_, err = mp.PrepareDataElements(snmp, msg, b)
+	if err == nil {
+		t.Errorf("PrepareDataElements() - contextName check")
+	}
+
+	pdu.(*snmpgo.ScopedPdu).ContextName = []byte(expCtxName)
+	pduBytes, _ = pdu.Marshal()
+	rmsg.SetPduBytes(pduBytes)
+	b, _ = rmsg.Marshal()
+
+	msgv3.SetAuthentication(true)
+	_, err = mp.PrepareDataElements(snmp, msg, b)
+	if err == nil {
+		t.Errorf("PrepareDataElements() - response authenticate check")
+	}
+
+	msgv3.SetAuthentication(false)
 	_, err = mp.PrepareDataElements(snmp, msg, b)
 	if err != nil {
 		t.Errorf("PrepareDataElements() - has error %v", err)

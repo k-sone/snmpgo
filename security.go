@@ -119,18 +119,7 @@ func (u *usm) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
 	}
 
 	// setup Pdu
-	p := sendMsg.Pdu().(*ScopedPdu)
-
-	if snmp.args.ContextEngineId != "" {
-		p.ContextEngineId, _ = engineIdToBytes(snmp.args.ContextEngineId)
-	} else {
-		p.ContextEngineId = m.AuthEngineId
-	}
-	if snmp.args.ContextName != "" {
-		p.ContextName = []byte(snmp.args.ContextName)
-	}
-
-	pduBytes, err := p.Marshal()
+	pduBytes, err := sendMsg.Pdu().Marshal()
 	if err != nil {
 		return
 	}
@@ -258,33 +247,6 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 			Cause:   err,
 			Message: fmt.Sprintf("Failed to Unmarshal Pdu%s", note),
 			Detail:  fmt.Sprintf("Pdu Bytes - [%s]", toHexStr(rm.PduBytes(), " ")),
-		}
-	}
-	p := rm.Pdu().(*ScopedPdu)
-
-	if p.PduType() == GetResponse {
-		var cxtId []byte
-		if snmp.args.ContextEngineId != "" {
-			cxtId, _ = engineIdToBytes(snmp.args.ContextEngineId)
-		} else {
-			cxtId = u.AuthEngineId
-		}
-		if !bytes.Equal(cxtId, p.ContextEngineId) {
-			return &ResponseError{
-				Message: fmt.Sprintf("ContextEngineId mismatch - expected [%s], actual [%s]",
-					toHexStr(cxtId, ""), toHexStr(p.ContextEngineId, "")),
-			}
-		}
-		if name := snmp.args.ContextName; name != string(p.ContextName) {
-			return &ResponseError{
-				Message: fmt.Sprintf("ContextName mismatch - expected [%s], actual [%s]",
-					name, string(p.ContextName)),
-			}
-		}
-		if sm.Authentication() && !rm.Authentication() {
-			return &ResponseError{
-				Message: "Response message is not authenticated",
-			}
 		}
 	}
 	return
