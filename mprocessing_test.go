@@ -9,14 +9,15 @@ import (
 )
 
 func TestMessageProcessingV1(t *testing.T) {
-	snmp, _ := snmpgo.NewSNMP(snmpgo.SNMPArguments{
+	args := &snmpgo.SNMPArguments{
 		Version:   snmpgo.V2c,
 		Community: "public",
-	})
-	mp := snmpgo.NewMessageProcessing(snmp)
+	}
+	mp := snmpgo.NewMessageProcessing(args.Version)
+	sec := snmpgo.NewSecurity(args)
 	pdu := snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetRequest)
 
-	msg, err := mp.PrepareOutgoingMessage(snmp, pdu)
+	msg, err := mp.PrepareOutgoingMessage(sec, pdu, args)
 	if err != nil {
 		t.Errorf("PrepareOutgoingMessage() - has error %v", err)
 	}
@@ -28,21 +29,14 @@ func TestMessageProcessingV1(t *testing.T) {
 	}
 	requestId := pdu.RequestId()
 
-	_, err = mp.PrepareDataElements(snmp, msg, []byte{0x00, 0x00})
-	if err == nil {
-		t.Error("PrepareDataElements() - message unmarshal error")
-	}
-
-	b, _ := msg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, msg, msg)
 	if err == nil {
 		t.Error("PrepareDataElements() - pdu type check")
 	}
 
 	pdu = snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetResponse)
 	rmsg := snmpgo.ToMessageV1(snmpgo.NewMessageWithPdu(snmpgo.V1, pdu))
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err == nil {
 		t.Error("PrepareDataElements() - version check")
 	}
@@ -52,8 +46,7 @@ func TestMessageProcessingV1(t *testing.T) {
 	rmsg = snmpgo.ToMessageV1(snmpgo.NewMessageWithPdu(snmpgo.V2c, pdu))
 	rmsg.Community = []byte("public")
 	rmsg.SetPduBytes(pduBytes)
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err != nil {
 		t.Errorf("PrepareDataElements() - has error %v", err)
 	}
@@ -63,7 +56,7 @@ func TestMessageProcessingV3(t *testing.T) {
 	expEngId := []byte{0x80, 0x00, 0x00, 0x00, 0x01}
 	expCtxId := []byte{0x80, 0x00, 0x00, 0x00, 0x05}
 	expCtxName := "myName"
-	snmp, _ := snmpgo.NewSNMP(snmpgo.SNMPArguments{
+	args := &snmpgo.SNMPArguments{
 		Version:         snmpgo.V3,
 		UserName:        "myName",
 		SecurityLevel:   snmpgo.AuthPriv,
@@ -73,15 +66,16 @@ func TestMessageProcessingV3(t *testing.T) {
 		PrivProtocol:    snmpgo.Des,
 		ContextEngineId: hex.EncodeToString(expCtxId),
 		ContextName:     expCtxName,
-	})
-	mp := snmpgo.NewMessageProcessing(snmp)
-	usm := snmpgo.ToUsm(mp.Security())
+	}
+	mp := snmpgo.NewMessageProcessing(args.Version)
+	sec := snmpgo.NewSecurity(args)
+	usm := snmpgo.ToUsm(sec)
 	usm.AuthEngineId = expEngId
 	usm.AuthKey = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	usm.PrivKey = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	pdu := snmpgo.NewPdu(snmpgo.V3, snmpgo.GetRequest)
 
-	msg, err := mp.PrepareOutgoingMessage(snmp, pdu)
+	msg, err := mp.PrepareOutgoingMessage(sec, pdu, args)
 	if err != nil {
 		t.Errorf("PrepareOutgoingMessage() - has error %v", err)
 	}
@@ -113,13 +107,7 @@ func TestMessageProcessingV3(t *testing.T) {
 	requestId := pdu.RequestId()
 	messageId := msgv3.MessageId
 
-	_, err = mp.PrepareDataElements(snmp, msg, []byte{0x00, 0x00})
-	if err == nil {
-		t.Error("PrepareDataElements() - message unmarshal error")
-	}
-
-	b, _ := msg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, msg, msg)
 	if err == nil {
 		t.Error("PrepareDataElements() - pdu type check")
 	}
@@ -128,15 +116,13 @@ func TestMessageProcessingV3(t *testing.T) {
 	rmsg := snmpgo.ToMessageV3(snmpgo.NewMessageWithPdu(snmpgo.V3, pdu))
 	rmsg.AuthEngineId = []byte{0, 0, 0, 0, 0}
 	rmsg.UserName = []byte("myName")
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err == nil {
 		t.Error("PrepareDataElements() - message id check")
 	}
 
 	rmsg.MessageId = messageId
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err == nil {
 		t.Error("PrepareDataElements() - security model check")
 	}
@@ -144,8 +130,7 @@ func TestMessageProcessingV3(t *testing.T) {
 	pduBytes, _ := pdu.Marshal()
 	rmsg.SetPduBytes(pduBytes)
 	rmsg.SecurityModel = 3
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err == nil {
 		t.Error("PrepareDataElements() - request id check")
 	}
@@ -153,8 +138,7 @@ func TestMessageProcessingV3(t *testing.T) {
 	pdu.SetRequestId(requestId)
 	pduBytes, _ = pdu.Marshal()
 	rmsg.SetPduBytes(pduBytes)
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err == nil {
 		t.Errorf("PrepareDataElements() - contextEngineId check")
 	}
@@ -162,8 +146,7 @@ func TestMessageProcessingV3(t *testing.T) {
 	pdu.(*snmpgo.ScopedPdu).ContextEngineId = expCtxId
 	pduBytes, _ = pdu.Marshal()
 	rmsg.SetPduBytes(pduBytes)
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err == nil {
 		t.Errorf("PrepareDataElements() - contextName check")
 	}
@@ -171,16 +154,15 @@ func TestMessageProcessingV3(t *testing.T) {
 	pdu.(*snmpgo.ScopedPdu).ContextName = []byte(expCtxName)
 	pduBytes, _ = pdu.Marshal()
 	rmsg.SetPduBytes(pduBytes)
-	b, _ = rmsg.Marshal()
 
 	msgv3.SetAuthentication(true)
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err == nil {
 		t.Errorf("PrepareDataElements() - response authenticate check")
 	}
 
 	msgv3.SetAuthentication(false)
-	_, err = mp.PrepareDataElements(snmp, msg, b)
+	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err != nil {
 		t.Errorf("PrepareDataElements() - has error %v", err)
 	}

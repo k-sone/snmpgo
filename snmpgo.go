@@ -116,8 +116,9 @@ func (a *SNMPArguments) String() string {
 
 // SNMP Object provides functions for the SNMP Client
 type SNMP struct {
-	args SNMPArguments
+	args *SNMPArguments
 	mp   messageProcessing
+	sec  security
 	conn net.Conn
 }
 
@@ -131,7 +132,8 @@ func (s *SNMP) Open() (err error) {
 		conn, e := net.DialTimeout(s.args.Network, s.args.Address, s.args.Timeout)
 		if e == nil {
 			s.conn = conn
-			s.mp = newMessageProcessing(s)
+			s.mp = newMessageProcessing(s.args.Version)
+			s.sec = newSecurity(s.args)
 		}
 		return e
 	})
@@ -140,7 +142,7 @@ func (s *SNMP) Open() (err error) {
 	}
 
 	err = retry(int(s.args.Retries), func() error {
-		return s.mp.Security().Discover(s)
+		return s.sec.Discover(s)
 	})
 	if err != nil {
 		s.Close()
@@ -155,6 +157,7 @@ func (s *SNMP) Close() {
 		s.conn.Close()
 		s.conn = nil
 		s.mp = nil
+		s.sec = nil
 	}
 }
 
@@ -313,7 +316,7 @@ func (s *SNMP) sendPdu(pdu Pdu) (result Pdu, err error) {
 	}
 
 	var sendMsg message
-	sendMsg, err = s.mp.PrepareOutgoingMessage(s, pdu)
+	sendMsg, err = s.mp.PrepareOutgoingMessage(s.sec, pdu, s.args)
 	if err != nil {
 		return
 	}
@@ -341,7 +344,16 @@ func (s *SNMP) sendPdu(pdu Pdu) (result Pdu, err error) {
 		return
 	}
 
-	result, err = s.mp.PrepareDataElements(s, sendMsg, buf)
+	var recvMsg message
+	if recvMsg, _, err = unmarshalMessage(buf); err != nil {
+		return nil, &ResponseError{
+			Cause:   err,
+			Message: "Failed to Unmarshal message",
+			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(buf, " ")),
+		}
+	}
+
+	result, err = s.mp.PrepareDataElements(s.sec, recvMsg, sendMsg)
 	if result != nil && len(pdu.VarBinds()) != 0 {
 		if err = s.checkPdu(result); err != nil {
 			result = nil
@@ -372,7 +384,7 @@ func (s *SNMP) String() string {
 		return fmt.Sprintf(`{"conn": false, "args": %s}`, s.args.String())
 	} else {
 		return fmt.Sprintf(`{"conn": true, "args": %s, "security": %s}`,
-			s.args.String(), s.mp.Security().String())
+			s.args.String(), s.sec.String())
 	}
 }
 
@@ -382,5 +394,5 @@ func NewSNMP(args SNMPArguments) (*SNMP, error) {
 		return nil, err
 	}
 	args.setDefault()
-	return &SNMP{args: args}, nil
+	return &SNMP{args: &args}, nil
 }

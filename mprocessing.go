@@ -6,21 +6,21 @@ import (
 )
 
 type messageProcessing interface {
-	Security() security
-	PrepareOutgoingMessage(*SNMP, Pdu) (message, error)
-	PrepareDataElements(*SNMP, message, []byte) (Pdu, error)
+	Version() SNMPVersion
+	PrepareOutgoingMessage(security, Pdu, *SNMPArguments) (message, error)
+	PrepareDataElements(security, message, message) (Pdu, error)
 }
 
 type messageProcessingV1 struct {
-	security *community
+	version SNMPVersion
 }
 
-func (mp *messageProcessingV1) Security() security {
-	return mp.security
+func (mp *messageProcessingV1) Version() SNMPVersion {
+	return mp.version
 }
 
 func (mp *messageProcessingV1) PrepareOutgoingMessage(
-	snmp *SNMP, pdu Pdu) (msg message, err error) {
+	sec security, pdu Pdu, args *SNMPArguments) (message, error) {
 
 	_, ok := pdu.(*PduV1)
 	if !ok {
@@ -30,25 +30,16 @@ func (mp *messageProcessingV1) PrepareOutgoingMessage(
 		}
 	}
 	pdu.SetRequestId(genRequestId())
-	msg = newMessageWithPdu(snmp.args.Version, pdu)
+	msg := newMessageWithPdu(mp.Version(), pdu)
 
-	err = mp.security.GenerateRequestMessage(msg)
-	return
+	if err := sec.GenerateRequestMessage(msg); err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
 
 func (mp *messageProcessingV1) PrepareDataElements(
-	snmp *SNMP, sendMsg message, b []byte) (Pdu, error) {
-
-	pdu := &PduV1{}
-	recvMsg := newMessageWithPdu(snmp.args.Version, pdu)
-	_, err := recvMsg.Unmarshal(b)
-	if err != nil {
-		return nil, &ResponseError{
-			Cause:   err,
-			Message: "Failed to Unmarshal message",
-			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(b, " ")),
-		}
-	}
+	sec security, recvMsg, sendMsg message) (Pdu, error) {
 
 	if sendMsg.Version() != recvMsg.Version() {
 		return nil, &ResponseError{
@@ -59,11 +50,11 @@ func (mp *messageProcessingV1) PrepareDataElements(
 		}
 	}
 
-	err = mp.security.ProcessIncomingMessage(recvMsg)
-	if err != nil {
+	if err := sec.ProcessIncomingMessage(recvMsg); err != nil {
 		return nil, err
 	}
 
+	pdu := recvMsg.Pdu()
 	if pdu.PduType() != GetResponse {
 		return nil, &ResponseError{
 			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]",
@@ -81,15 +72,15 @@ func (mp *messageProcessingV1) PrepareDataElements(
 }
 
 type messageProcessingV3 struct {
-	security *usm
+	version SNMPVersion
 }
 
-func (mp *messageProcessingV3) Security() security {
-	return mp.security
+func (mp *messageProcessingV3) Version() SNMPVersion {
+	return mp.version
 }
 
 func (mp *messageProcessingV3) PrepareOutgoingMessage(
-	snmp *SNMP, pdu Pdu) (msg message, err error) {
+	sec security, pdu Pdu, args *SNMPArguments) (message, error) {
 
 	p, ok := pdu.(*ScopedPdu)
 	if !ok {
@@ -99,47 +90,38 @@ func (mp *messageProcessingV3) PrepareOutgoingMessage(
 		}
 	}
 	p.SetRequestId(genRequestId())
-	if snmp.args.ContextEngineId != "" {
-		p.ContextEngineId, _ = engineIdToBytes(snmp.args.ContextEngineId)
+	if args.ContextEngineId != "" {
+		p.ContextEngineId, _ = engineIdToBytes(args.ContextEngineId)
 	} else {
-		p.ContextEngineId = mp.security.AuthEngineId
+		p.ContextEngineId = sec.(*usm).AuthEngineId
 	}
-	if snmp.args.ContextName != "" {
-		p.ContextName = []byte(snmp.args.ContextName)
+	if args.ContextName != "" {
+		p.ContextName = []byte(args.ContextName)
 	}
 
-	msg = newMessageWithPdu(snmp.args.Version, pdu)
+	msg := newMessageWithPdu(mp.Version(), pdu)
 	m := msg.(*messageV3)
 	m.MessageId = genMessageId()
-	m.MessageMaxSize = snmp.args.MessageMaxSize
+	m.MessageMaxSize = args.MessageMaxSize
 	m.SecurityModel = securityUsm
 	m.SetReportable(confirmedType(pdu.PduType()))
-	if snmp.args.SecurityLevel >= AuthNoPriv {
+	if args.SecurityLevel >= AuthNoPriv {
 		m.SetAuthentication(true)
-		if snmp.args.SecurityLevel >= AuthPriv {
+		if args.SecurityLevel >= AuthPriv {
 			m.SetPrivacy(true)
 		}
 	}
 
-	err = mp.security.GenerateRequestMessage(msg)
-	return
+	if err := sec.GenerateRequestMessage(msg); err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
 
 func (mp *messageProcessingV3) PrepareDataElements(
-	snmp *SNMP, sendMsg message, b []byte) (Pdu, error) {
+	sec security, recvMsg, sendMsg message) (Pdu, error) {
 
-	pdu := &ScopedPdu{}
-	recvMsg := newMessageWithPdu(snmp.args.Version, pdu)
-	_, err := recvMsg.Unmarshal(b)
-	if err != nil {
-		return nil, &ResponseError{
-			Cause:   err,
-			Message: "Failed to Unmarshal message",
-			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(b, " ")),
-		}
-	}
-
-	sm := sendMsg.(*messageV3)
+	sm, _ := sendMsg.(*messageV3)
 	rm := recvMsg.(*messageV3)
 	if sm.Version() != rm.Version() {
 		return nil, &ResponseError{
@@ -161,11 +143,11 @@ func (mp *messageProcessingV3) PrepareDataElements(
 		}
 	}
 
-	err = mp.security.ProcessIncomingMessage(recvMsg)
-	if err != nil {
+	if err := sec.ProcessIncomingMessage(recvMsg); err != nil {
 		return nil, err
 	}
 
+	pdu, _ := recvMsg.Pdu().(*ScopedPdu)
 	switch t := pdu.PduType(); t {
 	case GetResponse:
 		if sm.Pdu().RequestId() != pdu.RequestId() {
@@ -210,24 +192,12 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	return pdu, nil
 }
 
-func newMessageProcessing(snmp *SNMP) (mp messageProcessing) {
-	switch snmp.args.Version {
+func newMessageProcessing(ver SNMPVersion) (mp messageProcessing) {
+	switch ver {
 	case V1, V2c:
-		mp = &messageProcessingV1{
-			security: &community{
-				Community: []byte(snmp.args.Community),
-			},
-		}
+		mp = &messageProcessingV1{version: ver}
 	case V3:
-		mp = &messageProcessingV3{
-			security: &usm{
-				UserName:     []byte(snmp.args.UserName),
-				AuthPassword: snmp.args.AuthPassword,
-				AuthProtocol: snmp.args.AuthProtocol,
-				PrivPassword: snmp.args.PrivPassword,
-				PrivProtocol: snmp.args.PrivProtocol,
-			},
-		}
+		mp = &messageProcessingV3{version: ver}
 	}
 	return
 }
