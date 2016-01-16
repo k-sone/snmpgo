@@ -6,8 +6,12 @@ var Retry = retry
 var NewNotInTimeWindowError = func() error { return &notInTimeWindowError{&ResponseError{}} }
 
 // For snmpgo testing
+var NewSNMPEngine = newSNMPEngine
+
 func ArgsValidate(args *SNMPArguments) error { return args.validate() }
-func SnmpCheckPdu(snmp *SNMP, pdu Pdu) error { return snmp.checkPdu(pdu) }
+func CheckPdu(engine *snmpEngine, pdu Pdu, args *SNMPArguments) error {
+	return engine.checkPdu(pdu, args)
+}
 
 // For message testing
 var NewMessage = newMessage

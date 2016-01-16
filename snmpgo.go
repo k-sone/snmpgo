@@ -116,10 +116,9 @@ func (a *SNMPArguments) String() string {
 
 // SNMP Object provides functions for the SNMP Client
 type SNMP struct {
-	args *SNMPArguments
-	mp   messageProcessing
-	sec  security
-	conn net.Conn
+	conn   net.Conn
+	args   *SNMPArguments
+	engine *snmpEngine
 }
 
 // Open a connection
@@ -132,8 +131,6 @@ func (s *SNMP) Open() (err error) {
 		conn, e := net.DialTimeout(s.args.Network, s.args.Address, s.args.Timeout)
 		if e == nil {
 			s.conn = conn
-			s.mp = newMessageProcessing(s.args.Version)
-			s.sec = newSecurity(s.args)
 		}
 		return e
 	})
@@ -141,12 +138,9 @@ func (s *SNMP) Open() (err error) {
 		return
 	}
 
-	err = retry(int(s.args.Retries), func() error {
-		return s.sec.Discover(s)
-	})
-	if err != nil {
+	s.engine = newSNMPEngine(s.args)
+	if err = s.engine.Discover(s); err != nil {
 		s.Close()
-		return
 	}
 	return
 }
@@ -156,29 +150,18 @@ func (s *SNMP) Close() {
 	if s.conn != nil {
 		s.conn.Close()
 		s.conn = nil
-		s.mp = nil
-		s.sec = nil
+		s.engine = nil
 	}
 }
 
 func (s *SNMP) GetRequest(oids Oids) (result Pdu, err error) {
 	pdu := NewPduWithOids(s.args.Version, GetRequest, oids)
-
-	retry(int(s.args.Retries), func() error {
-		result, err = s.sendPdu(pdu)
-		return err
-	})
-	return
+	return s.sendPdu(pdu)
 }
 
 func (s *SNMP) GetNextRequest(oids Oids) (result Pdu, err error) {
 	pdu := NewPduWithOids(s.args.Version, GetNextRequest, oids)
-
-	retry(int(s.args.Retries), func() error {
-		result, err = s.sendPdu(pdu)
-		return err
-	})
-	return
+	return s.sendPdu(pdu)
 }
 
 func (s *SNMP) GetBulkRequest(oids Oids, nonRepeaters, maxRepetitions int) (result Pdu, err error) {
@@ -206,12 +189,7 @@ func (s *SNMP) GetBulkRequest(oids Oids, nonRepeaters, maxRepetitions int) (resu
 	pdu := NewPduWithOids(s.args.Version, GetBulkRequest, oids)
 	pdu.SetNonrepeaters(nonRepeaters)
 	pdu.SetMaxRepetitions(maxRepetitions)
-
-	retry(int(s.args.Retries), func() error {
-		result, err = s.sendPdu(pdu)
-		return err
-	})
-	return
+	return s.sendPdu(pdu)
 }
 
 // This method inquire about OID subtrees by repeatedly using GetBulkRequest.
@@ -302,11 +280,7 @@ func (s *SNMP) v2trap(pduType PduType, varBinds VarBinds) (err error) {
 	}
 
 	pdu := NewPduWithVarBinds(s.args.Version, pduType, varBinds)
-
-	retry(int(s.args.Retries), func() error {
-		_, err = s.sendPdu(pdu)
-		return err
-	})
+	_, err = s.sendPdu(pdu)
 	return
 }
 
@@ -315,76 +289,19 @@ func (s *SNMP) sendPdu(pdu Pdu) (result Pdu, err error) {
 		return
 	}
 
-	var sendMsg message
-	sendMsg, err = s.mp.PrepareOutgoingMessage(s.sec, pdu, s.args)
-	if err != nil {
-		return
-	}
-
-	var buf []byte
-	buf, err = sendMsg.Marshal()
-	if err != nil {
-		return
-	}
-
-	s.conn.SetWriteDeadline(time.Now().Add(s.args.Timeout))
-	_, err = s.conn.Write(buf)
-	if !confirmedType(pdu.PduType()) || err != nil {
-		return
-	}
-
-	size := s.args.MessageMaxSize
-	if size < recvBufferSize {
-		size = recvBufferSize
-	}
-	buf = make([]byte, size)
-	s.conn.SetReadDeadline(time.Now().Add(s.args.Timeout))
-	_, err = s.conn.Read(buf)
-	if err != nil {
-		return
-	}
-
-	var recvMsg message
-	if recvMsg, _, err = unmarshalMessage(buf); err != nil {
-		return nil, &ResponseError{
-			Cause:   err,
-			Message: "Failed to Unmarshal message",
-			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(buf, " ")),
-		}
-	}
-
-	result, err = s.mp.PrepareDataElements(s.sec, recvMsg, sendMsg)
-	if result != nil && len(pdu.VarBinds()) != 0 {
-		if err = s.checkPdu(result); err != nil {
-			result = nil
-		}
-	}
-	return
-}
-
-func (s *SNMP) checkPdu(pdu Pdu) (err error) {
-	varBinds := pdu.VarBinds()
-	if s.args.Version == V3 && pdu.PduType() == Report && len(varBinds) > 0 {
-		oid := varBinds[0].Oid.String()
-		rep := reportStatusOid(oid)
-		err = &ResponseError{
-			Message: fmt.Sprintf("Received a report from the agent - %s(%s)", rep, oid),
-			Detail:  fmt.Sprintf("Pdu - %s", pdu),
-		}
-		// perhaps the agent has rebooted after the previous communication
-		if rep == usmStatsNotInTimeWindows {
-			err = &notInTimeWindowError{err.(*ResponseError)}
-		}
-	}
+	retry(int(s.args.Retries), func() error {
+		result, err = s.engine.SendPdu(pdu, s.conn, s.args)
+		return err
+	})
 	return
 }
 
 func (s *SNMP) String() string {
 	if s.conn == nil {
-		return fmt.Sprintf(`{"conn": false, "args": %s}`, s.args.String())
+		return fmt.Sprintf(`{"conn": false, "args": %s, "engine": null}`, s.args.String())
 	} else {
-		return fmt.Sprintf(`{"conn": true, "args": %s, "security": %s}`,
-			s.args.String(), s.sec.String())
+		return fmt.Sprintf(`{"conn": true, "args": %s, "engine": %s}`,
+			s.args.String(), s.engine.String())
 	}
 }
 
