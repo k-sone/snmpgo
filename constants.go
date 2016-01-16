@@ -168,6 +168,21 @@ const (
 	Aes PrivProtocol = "AES"
 )
 
+type securityModel int
+
+const (
+	securityUsm = 3
+)
+
+func (s securityModel) String() string {
+	switch s {
+	case securityUsm:
+		return "USM"
+	default:
+		return "Unknown"
+	}
+}
+
 const (
 	timeoutDefault = 5 * time.Second
 	recvBufferSize = 1 << 11
