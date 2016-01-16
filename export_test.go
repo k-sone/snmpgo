@@ -18,6 +18,7 @@ func ToMessageV3(msg message) *messageV3 { return msg.(*messageV3) }
 func ToUsm(sec security) *usm            { return sec.(*usm) }
 
 // For security testing
+var NewSecurity = newSecurity
 var PasswordToKey = passwordToKey
 var EncryptDES = encryptDES
 var EncryptAES = encryptAES

@@ -17,17 +17,24 @@ import (
 )
 
 type security interface {
-	GenerateRequestMessage(*SNMP, message) error
-	ProcessIncomingMessage(*SNMP, message, message) error
+	Identifier() string
+	GenerateRequestMessage(message) error
+	ProcessIncomingMessage(message) error
 	Discover(*SNMP) error
 	String() string
 }
 
-type community struct{}
+type community struct {
+	Community []byte
+}
 
-func (c *community) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
+func (c *community) Identifier() string {
+	return toHexStr(c.Community, "")
+}
+
+func (c *community) GenerateRequestMessage(sendMsg message) (err error) {
 	m := sendMsg.(*messageV1)
-	m.Community = []byte(snmp.args.Community)
+	m.Community = c.Community
 
 	b, err := m.Pdu().Marshal()
 	if err != nil {
@@ -38,16 +45,15 @@ func (c *community) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err err
 	return
 }
 
-func (c *community) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err error) {
-	sm := sendMsg.(*messageV1)
+func (c *community) ProcessIncomingMessage(recvMsg message) (err error) {
 	rm := recvMsg.(*messageV1)
 
-	if !bytes.Equal(sm.Community, rm.Community) {
+	if !bytes.Equal(c.Community, rm.Community) {
 		return &ResponseError{
 			Message: fmt.Sprintf(
 				"Community mismatch - expected [%s], actual [%s]",
-				string(sm.Community), string(rm.Community)),
-			Detail: fmt.Sprintf("%s vs %s", sm, rm),
+				toHexStr(c.Community, ""), toHexStr(rm.Community, "")),
+			Detail: fmt.Sprintf("Message - [%s]", rm),
 		}
 	}
 
@@ -67,7 +73,7 @@ func (c *community) Discover(snmp *SNMP) error {
 }
 
 func (c *community) String() string {
-	return "{}"
+	return fmt.Sprintf(`{"Community": "%s"}`, toHexStr(c.Community, ""))
 }
 
 type discoveryStatus int
@@ -92,21 +98,30 @@ func (d discoveryStatus) String() string {
 }
 
 type usm struct {
+	UserName        []byte
 	DiscoveryStatus discoveryStatus
 	AuthEngineId    []byte
 	AuthEngineBoots int64
 	AuthEngineTime  int64
-	AuthKey         []byte
-	PrivKey         []byte
 	UpdatedTime     time.Time
+	AuthKey         []byte
+	AuthPassword    string
+	AuthProtocol    AuthProtocol
+	PrivKey         []byte
+	PrivPassword    string
+	PrivProtocol    PrivProtocol
 }
 
-func (u *usm) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
+func (u *usm) Identifier() string {
+	return toHexStr(u.UserName, "")
+}
+
+func (u *usm) GenerateRequestMessage(sendMsg message) (err error) {
 	// setup message
 	m := sendMsg.(*messageV3)
 
 	if u.DiscoveryStatus > noDiscovered {
-		m.UserName = []byte(snmp.args.UserName)
+		m.UserName = u.UserName
 		m.AuthEngineId = u.AuthEngineId
 	}
 	if u.DiscoveryStatus > noSynchronized {
@@ -128,14 +143,14 @@ func (u *usm) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
 	if m.Authentication() {
 		// encrypt Pdu
 		if m.Privacy() {
-			err = encrypt(m, snmp.args.PrivProtocol, u.PrivKey)
+			err = encrypt(m, u.PrivProtocol, u.PrivKey)
 			if err != nil {
 				return
 			}
 		}
 
 		// get digest of whole message
-		digest, e := mac(m, snmp.args.AuthProtocol, u.AuthKey)
+		digest, e := mac(m, u.AuthProtocol, u.AuthKey)
 		if e != nil {
 			return e
 		}
@@ -145,8 +160,7 @@ func (u *usm) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
 	return
 }
 
-func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err error) {
-	sm := sendMsg.(*messageV3)
+func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 	rm := recvMsg.(*messageV3)
 
 	// RFC3411 Section 5
@@ -169,27 +183,27 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 		}
 	}
 	if u.DiscoveryStatus > noDiscovered {
-		if !bytes.Equal(sm.AuthEngineId, rm.AuthEngineId) {
+		if !bytes.Equal(u.AuthEngineId, rm.AuthEngineId) {
 			return &ResponseError{
 				Message: fmt.Sprintf(
 					"AuthEngineId mismatch - expected [%s], actual [%s]",
-					toHexStr(sm.AuthEngineId, ""), toHexStr(rm.AuthEngineId, "")),
-				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+					toHexStr(u.AuthEngineId, ""), toHexStr(rm.AuthEngineId, "")),
+				Detail: fmt.Sprintf("Message - [%s]", rm),
 			}
 		}
-		if !bytes.Equal(sm.UserName, rm.UserName) {
+		if !bytes.Equal(u.UserName, rm.UserName) {
 			return &ResponseError{
 				Message: fmt.Sprintf(
 					"UserName mismatch - expected [%s], actual [%s]",
-					string(sm.UserName), string(rm.UserName)),
-				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+					toHexStr(u.UserName, ""), toHexStr(rm.UserName, "")),
+				Detail: fmt.Sprintf("Message - [%s]", rm),
 			}
 		}
 	}
 
 	if rm.Authentication() {
 		// get & check digest of whole message
-		digest, e := mac(rm, snmp.args.AuthProtocol, u.AuthKey)
+		digest, e := mac(rm, u.AuthProtocol, u.AuthKey)
 		if e != nil {
 			return &ResponseError{
 				Cause:   e,
@@ -205,7 +219,7 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 
 		// decrypt Pdu
 		if rm.Privacy() {
-			e := decrypt(rm, snmp.args.PrivProtocol, u.PrivKey, rm.PrivParameter)
+			e := decrypt(rm, u.PrivProtocol, u.PrivKey, rm.PrivParameter)
 			if e != nil {
 				return &ResponseError{
 					Cause:   e,
@@ -233,7 +247,7 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 			u.DiscoveryStatus = discovered
 		}
 	case noDiscovered:
-		u.SetAuthEngineId(snmp, rm.AuthEngineId)
+		u.SetAuthEngineId(rm.AuthEngineId)
 		u.DiscoveryStatus = noSynchronized
 	}
 
@@ -255,7 +269,7 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 func (u *usm) Discover(snmp *SNMP) (err error) {
 	if snmp.args.SecurityEngineId != "" {
 		securityEngineId, _ := engineIdToBytes(snmp.args.SecurityEngineId)
-		u.SetAuthEngineId(snmp, securityEngineId)
+		u.SetAuthEngineId(securityEngineId)
 		u.DiscoveryStatus = noSynchronized
 		return
 	}
@@ -286,13 +300,13 @@ func (u *usm) Discover(snmp *SNMP) (err error) {
 	return
 }
 
-func (u *usm) SetAuthEngineId(snmp *SNMP, authEngineId []byte) {
+func (u *usm) SetAuthEngineId(authEngineId []byte) {
 	u.AuthEngineId = authEngineId
-	if len(snmp.args.AuthPassword) > 0 {
-		u.AuthKey = passwordToKey(snmp.args.AuthProtocol, snmp.args.AuthPassword, authEngineId)
+	if len(u.AuthPassword) > 0 {
+		u.AuthKey = passwordToKey(u.AuthProtocol, u.AuthPassword, authEngineId)
 	}
-	if len(snmp.args.PrivPassword) > 0 {
-		u.PrivKey = passwordToKey(snmp.args.AuthProtocol, snmp.args.PrivPassword, authEngineId)
+	if len(u.PrivPassword) > 0 {
+		u.PrivKey = passwordToKey(u.AuthProtocol, u.PrivPassword, authEngineId)
 	}
 }
 
@@ -333,10 +347,12 @@ func (u *usm) CheckTimeliness(engineBoots, engineTime int64) error {
 
 func (u *usm) String() string {
 	return fmt.Sprintf(
-		`{"DiscoveryStatus": "%s", "AuthEngineId": "%s", "AuthEngineBoots": "%d", `+
-			`"AuthEngineTime": "%d", "AuthKey": "%s", "PrivKey": "%s", "UpdatedTime": "%s"}`,
-		u.DiscoveryStatus, toHexStr(u.AuthEngineId, ""), u.AuthEngineBoots, u.AuthEngineTime,
-		toHexStr(u.AuthKey, ""), toHexStr(u.PrivKey, ""), u.UpdatedTime)
+		`{"UserName": "%s", "DiscoveryStatus": "%s", "AuthEngineId": "%s", `+
+			`"AuthEngineBoots": "%d", "AuthEngineTime": "%d", "UpdatedTime": "%s", `+
+			`"AuthKey": "%s", "AuthProtocol": "%s", "PrivKey": "%s", "PrivProtocol": "%s"}`,
+		toHexStr(u.UserName, ""), u.DiscoveryStatus, toHexStr(u.AuthEngineId, ""),
+		u.AuthEngineBoots, u.AuthEngineTime, u.UpdatedTime,
+		toHexStr(u.AuthKey, ""), u.AuthProtocol, toHexStr(u.PrivKey, ""), u.PrivProtocol)
 }
 
 func mac(msg *messageV3, proto AuthProtocol, key []byte) ([]byte, error) {
@@ -412,7 +428,6 @@ func decrypt(msg *messageV3, proto PrivProtocol, key, privParam []byte) (err err
 }
 
 func encryptDES(src, key []byte, engineBoots, salt int32) (dst, privParam []byte, err error) {
-
 	block, err := des.NewCipher(key[:8])
 	if err != nil {
 		return
@@ -433,7 +448,6 @@ func encryptDES(src, key []byte, engineBoots, salt int32) (dst, privParam []byte
 }
 
 func decryptDES(src, key, privParam []byte) (dst []byte, err error) {
-
 	if len(src)%des.BlockSize != 0 {
 		err = &ArgumentError{
 			Value:   len(src),
@@ -539,4 +553,22 @@ func passwordToKey(proto AuthProtocol, password string, engineId []byte) []byte 
 	h.Write(engineId)
 	h.Write(ku)
 	return h.Sum(nil)
+}
+
+func newSecurity(args *SNMPArguments) (sec security) {
+	switch args.Version {
+	case V1, V2c:
+		sec = &community{
+			Community: []byte(args.Community),
+		}
+	case V3:
+		sec = &usm{
+			UserName:     []byte(args.UserName),
+			AuthPassword: args.AuthPassword,
+			AuthProtocol: args.AuthProtocol,
+			PrivPassword: args.PrivPassword,
+			PrivProtocol: args.PrivProtocol,
+		}
+	}
+	return sec
 }

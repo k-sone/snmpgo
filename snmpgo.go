@@ -131,7 +131,7 @@ func (s *SNMP) Open() (err error) {
 		conn, e := net.DialTimeout(s.args.Network, s.args.Address, s.args.Timeout)
 		if e == nil {
 			s.conn = conn
-			s.mp = newMessageProcessing(s.args.Version)
+			s.mp = newMessageProcessing(s)
 		}
 		return e
 	})

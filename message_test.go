@@ -101,7 +101,7 @@ func TestMessageProcessingV1(t *testing.T) {
 		Version:   snmpgo.V2c,
 		Community: "public",
 	})
-	mp := snmpgo.NewMessageProcessing(snmpgo.V2c)
+	mp := snmpgo.NewMessageProcessing(snmp)
 	pdu := snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetRequest)
 
 	msg, err := mp.PrepareOutgoingMessage(snmp, pdu)
@@ -162,7 +162,7 @@ func TestMessageProcessingV3(t *testing.T) {
 		ContextEngineId: hex.EncodeToString(expCtxId),
 		ContextName:     expCtxName,
 	})
-	mp := snmpgo.NewMessageProcessing(snmpgo.V3)
+	mp := snmpgo.NewMessageProcessing(snmp)
 	usm := snmpgo.ToUsm(mp.Security())
 	usm.AuthEngineId = expEngId
 	usm.AuthKey = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -214,14 +214,14 @@ func TestMessageProcessingV3(t *testing.T) {
 
 	pdu = snmpgo.NewPdu(snmpgo.V3, snmpgo.GetResponse)
 	rmsg := snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
+	rmsg.AuthEngineId = []byte{0, 0, 0, 0, 0}
+	rmsg.UserName = []byte("myName")
 	b, _ = rmsg.Marshal()
 	_, err = mp.PrepareDataElements(snmp, msg, b)
 	if err == nil {
 		t.Error("PrepareDataElements() - message id check")
 	}
 
-	rmsg = snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
-	rmsg.AuthEngineId = []byte{0, 0, 0, 0, 0}
 	rmsg.MessageId = messageId
 	b, _ = rmsg.Marshal()
 	_, err = mp.PrepareDataElements(snmp, msg, b)

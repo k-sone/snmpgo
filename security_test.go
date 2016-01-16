@@ -74,15 +74,12 @@ func TestCipher(t *testing.T) {
 
 func TestCommunity(t *testing.T) {
 	expCom := "public"
-	snmp, _ := snmpgo.NewSNMP(snmpgo.SNMPArguments{
-		Version:   snmpgo.V2c,
-		Community: expCom,
-	})
 	sec := snmpgo.NewCommunity()
+	sec.Community = []byte(expCom)
 	pdu := snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetRequest)
 	smsg := snmpgo.ToMessageV1(snmpgo.NewMessage(snmpgo.V2c, pdu))
 
-	err := sec.GenerateRequestMessage(snmp, smsg)
+	err := sec.GenerateRequestMessage(smsg)
 	if err != nil {
 		t.Errorf("GenerateRequestMessage() - has error %v", err)
 	}
@@ -96,14 +93,14 @@ func TestCommunity(t *testing.T) {
 	pdu = snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetResponse)
 	rmsg := snmpgo.ToMessageV1(snmpgo.NewMessage(snmpgo.V2c, pdu))
 
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err == nil {
 		t.Error("ProcessIncomingMessage() - community check")
 	}
 
 	rmsg.Community = []byte(expCom)
 	rmsg.SetPduBytes(smsg.PduBytes())
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err != nil {
 		t.Errorf("ProcessIncomingMessage() - has error %v", err)
 	}
@@ -112,16 +109,12 @@ func TestCommunity(t *testing.T) {
 func TestUsm(t *testing.T) {
 	expUser := []byte("myUser")
 	expEngId := []byte{0x80, 0x00, 0x00, 0x00, 0x01}
-	snmp, _ := snmpgo.NewSNMP(snmpgo.SNMPArguments{
-		Version:       snmpgo.V3,
-		UserName:      string(expUser),
-		SecurityLevel: snmpgo.AuthPriv,
-		AuthPassword:  "aaaaaaaa",
-		AuthProtocol:  snmpgo.Md5,
-		PrivPassword:  "bbbbbbbb",
-		PrivProtocol:  snmpgo.Des,
-	})
 	sec := snmpgo.NewUsm()
+	sec.UserName = expUser
+	sec.AuthPassword = "aaaaaaaa"
+	sec.AuthProtocol = snmpgo.Md5
+	sec.PrivPassword = "bbbbbbbb"
+	sec.PrivProtocol = snmpgo.Des
 	pdu := snmpgo.NewPdu(snmpgo.V3, snmpgo.GetRequest)
 	spdu := pdu.(*snmpgo.ScopedPdu)
 	smsg := snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
@@ -129,7 +122,7 @@ func TestUsm(t *testing.T) {
 	smsg.SetPrivacy(false)
 
 	// Discovery
-	err := sec.GenerateRequestMessage(snmp, smsg)
+	err := sec.GenerateRequestMessage(smsg)
 	if err != nil {
 		t.Errorf("GenerateRequestMessage() - has error %v", err)
 	}
@@ -140,27 +133,27 @@ func TestUsm(t *testing.T) {
 	pdu = snmpgo.NewPdu(snmpgo.V3, snmpgo.Report)
 	rmsg := snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
 	rmsg.SetPduBytes(smsg.PduBytes())
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err == nil {
 		t.Error("ProcessIncomingMessage() - engineId check")
 	}
 
 	rmsg.AuthEngineId = expEngId
 	rmsg.AuthEngineBoots = -1
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err == nil {
 		t.Error("ProcessIncomingMessage() - boots check")
 	}
 
 	rmsg.AuthEngineBoots = 1
 	rmsg.AuthEngineTime = -1
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err == nil {
 		t.Error("ProcessIncomingMessage() - time check")
 	}
 
 	rmsg.AuthEngineTime = 1
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err != nil {
 		t.Errorf("ProcessIncomingMessage() - has error %v", err)
 	}
@@ -179,7 +172,7 @@ func TestUsm(t *testing.T) {
 	smsg.SetAuthentication(true)
 	smsg.SetPrivacy(true)
 
-	err = sec.GenerateRequestMessage(snmp, smsg)
+	err = sec.GenerateRequestMessage(smsg)
 	if err != nil {
 		t.Errorf("GenerateRequestMessage() - has error %v", err)
 	}
@@ -209,19 +202,19 @@ func TestUsm(t *testing.T) {
 	rmsg.PrivParameter = smsg.PrivParameter
 	rmsg.AuthParameter = smsg.AuthParameter
 
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err == nil {
 		t.Error("ProcessIncomingMessage() - userName check")
 	}
 
 	rmsg.UserName = expUser
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err == nil {
 		t.Error("ProcessIncomingMessage() - authEngine check")
 	}
 
 	rmsg.AuthEngineId = expEngId
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err != nil {
 		t.Errorf("ProcessIncomingMessage() - has error %v", err)
 	}
@@ -236,7 +229,7 @@ func TestUsm(t *testing.T) {
 	sec.AuthEngineBoots = 1
 	sec.AuthEngineTime = 1
 
-	err = sec.GenerateRequestMessage(snmp, smsg)
+	err = sec.GenerateRequestMessage(smsg)
 	if err != nil {
 		t.Errorf("GenerateRequestMessage() - has error %v", err)
 	}
@@ -261,7 +254,7 @@ func TestUsm(t *testing.T) {
 	b, _ := spdu.Marshal()
 	rmsg.SetPduBytes(b)
 
-	err = sec.ProcessIncomingMessage(snmp, smsg, rmsg)
+	err = sec.ProcessIncomingMessage(rmsg)
 	if err != nil {
 		t.Error("ProcessIncomingMessage() - has error %v", err)
 	}

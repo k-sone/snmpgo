@@ -367,7 +367,7 @@ func (mp *messageProcessingV1) PrepareOutgoingMessage(
 	pdu.SetRequestId(genRequestId())
 	msg = newMessage(snmp.args.Version, pdu)
 
-	err = mp.security.GenerateRequestMessage(snmp, msg)
+	err = mp.security.GenerateRequestMessage(msg)
 	return
 }
 
@@ -394,7 +394,7 @@ func (mp *messageProcessingV1) PrepareDataElements(
 		}
 	}
 
-	err = mp.security.ProcessIncomingMessage(snmp, sendMsg, recvMsg)
+	err = mp.security.ProcessIncomingMessage(recvMsg)
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +457,7 @@ func (mp *messageProcessingV3) PrepareOutgoingMessage(
 		}
 	}
 
-	err = mp.security.GenerateRequestMessage(snmp, msg)
+	err = mp.security.GenerateRequestMessage(msg)
 	return
 }
 
@@ -497,7 +497,7 @@ func (mp *messageProcessingV3) PrepareDataElements(
 		}
 	}
 
-	err = mp.security.ProcessIncomingMessage(snmp, sendMsg, recvMsg)
+	err = mp.security.ProcessIncomingMessage(recvMsg)
 	if err != nil {
 		return nil, err
 	}
@@ -546,12 +546,24 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	return pdu, nil
 }
 
-func newMessageProcessing(ver SNMPVersion) (mp messageProcessing) {
-	switch ver {
+func newMessageProcessing(snmp *SNMP) (mp messageProcessing) {
+	switch snmp.args.Version {
 	case V1, V2c:
-		mp = &messageProcessingV1{security: &community{}}
+		mp = &messageProcessingV1{
+			security: &community{
+				Community: []byte(snmp.args.Community),
+			},
+		}
 	case V3:
-		mp = &messageProcessingV3{security: &usm{}}
+		mp = &messageProcessingV3{
+			security: &usm{
+				UserName:     []byte(snmp.args.UserName),
+				AuthPassword: snmp.args.AuthPassword,
+				AuthProtocol: snmp.args.AuthProtocol,
+				PrivPassword: snmp.args.PrivPassword,
+				PrivProtocol: snmp.args.PrivProtocol,
+			},
+		}
 	}
 	return
 }
