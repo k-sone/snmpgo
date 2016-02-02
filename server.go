@@ -18,12 +18,10 @@ type TrapListener interface {
 	OnTRAP(trap *TrapRequest)
 }
 
-/**
- *  TrapRequest is representing trap request that is send from the network element.
- */
+// TrapRequest is representing trap request that is send from the network element.
 type TrapRequest struct {
-	// The received Trap message
-	Message message
+	// The received PDU
+	Pdu Pdu
 
 	// Error is an optional field used to indicate
 	// errors which may occur during the decoding
@@ -117,7 +115,7 @@ func (s *Server) handle(buf []byte) {
 		_, err = recvMsg.Pdu().Unmarshal(recvMsg.PduBytes())
 	}
 
-	s.Listener.OnTRAP(&TrapRequest{recvMsg, err})
+	s.Listener.OnTRAP(&TrapRequest{recvMsg.Pdu(), err})
 }
 
 func (s *Server) logf(format string, args ...interface{}) {

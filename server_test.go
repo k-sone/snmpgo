@@ -35,7 +35,7 @@ func TestSendV2TrapAndReceiveIt(t *testing.T) {
 	trapSender.SendV2TrapWithBindings(varBinds)
 
 	trap := trapQueue.takeNextTrap()
-	pdu := trap.Message.Pdu()
+	pdu := trap.Pdu
 
 	if pdu.PduType() != snmpgo.SNMPTrapV2 {
 		t.Fatalf("expected trapv2, got: %s", pdu.PduType())
