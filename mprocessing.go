@@ -8,6 +8,7 @@ import (
 type messageProcessing interface {
 	Version() SNMPVersion
 	PrepareOutgoingMessage(security, Pdu, *SNMPArguments) (message, error)
+	PrepareResponseMessage(security, Pdu, message) (message, error)
 	PrepareDataElements(security, message, message) (Pdu, error)
 }
 
@@ -33,6 +34,25 @@ func (mp *messageProcessingV1) PrepareOutgoingMessage(
 	msg := newMessageWithPdu(mp.Version(), pdu)
 
 	if err := sec.GenerateRequestMessage(msg); err != nil {
+		return nil, err
+	}
+	return msg, nil
+}
+
+func (mp *messageProcessingV1) PrepareResponseMessage(
+	sec security, pdu Pdu, recvMsg message) (message, error) {
+
+	_, ok := pdu.(*PduV1)
+	if !ok {
+		return nil, &ArgumentError{
+			Value:   pdu,
+			Message: "Type of Pdu is not PduV1",
+		}
+	}
+	pdu.SetRequestId(recvMsg.Pdu().RequestId())
+	msg := newMessageWithPdu(mp.Version(), pdu)
+
+	if err := sec.GenerateResponseMessage(msg); err != nil {
 		return nil, err
 	}
 	return msg, nil
@@ -125,6 +145,13 @@ func (mp *messageProcessingV3) PrepareOutgoingMessage(
 		return nil, err
 	}
 	return msg, nil
+}
+
+func (mp *messageProcessingV3) PrepareResponseMessage(
+	sec security, pdu Pdu, recvMsg message) (message, error) {
+
+	// TODO support for response message of v3
+	return nil, nil
 }
 
 func (mp *messageProcessingV3) PrepareDataElements(

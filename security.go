@@ -19,6 +19,7 @@ import (
 type security interface {
 	Identifier() string
 	GenerateRequestMessage(message) error
+	GenerateResponseMessage(message) error
 	ProcessIncomingMessage(message) error
 	Discover(*SNMP) error
 	String() string
@@ -43,6 +44,10 @@ func (c *community) GenerateRequestMessage(sendMsg message) (err error) {
 	m.SetPduBytes(b)
 
 	return
+}
+
+func (c *community) GenerateResponseMessage(sendMsg message) (err error) {
+	return c.GenerateRequestMessage(sendMsg)
 }
 
 func (c *community) ProcessIncomingMessage(recvMsg message) (err error) {
@@ -158,6 +163,10 @@ func (u *usm) GenerateRequestMessage(sendMsg message) (err error) {
 	}
 
 	return
+}
+
+func (u *usm) GenerateResponseMessage(sendMsg message) (err error) {
+	return u.GenerateRequestMessage(sendMsg)
 }
 
 func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {

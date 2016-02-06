@@ -79,6 +79,19 @@ func TestMessageProcessingV1Receive(t *testing.T) {
 	if err != nil {
 		t.Errorf("PrepareDataElements() - has error %v", err)
 	}
+
+	pdu = snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetResponse)
+	pdu.SetRequestId(-1)
+	smsg, err := mp.PrepareResponseMessage(sec, pdu, rmsg)
+	if err != nil {
+		t.Errorf("PrepareResponseMessage() - has error %v", err)
+	}
+	if len(smsg.PduBytes()) == 0 {
+		t.Error("PrepareResponseMessage() - pdu bytes")
+	}
+	if pdu.RequestId() != rmsg.Pdu().RequestId() {
+		t.Error("PrepareResponseMessage() - request id")
+	}
 }
 
 func TestMessageProcessingV3(t *testing.T) {
