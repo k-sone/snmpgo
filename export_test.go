@@ -30,6 +30,7 @@ var EncryptDES = encryptDES
 var EncryptAES = encryptAES
 var DecryptDES = decryptDES
 var DecryptAES = decryptAES
+var NewSecurityMap = newSecurityMap
 
 func NewCommunity() *community { return &community{} }
 func NewUsm() *usm             { return &usm{} }

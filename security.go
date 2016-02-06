@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"hash"
 	"math"
+	"sync"
 	"time"
 )
 
@@ -30,7 +31,7 @@ type community struct {
 }
 
 func (c *community) Identifier() string {
-	return toHexStr(c.Community, "")
+	return string(c.Community)
 }
 
 func (c *community) GenerateRequestMessage(sendMsg message) (err error) {
@@ -118,7 +119,7 @@ type usm struct {
 }
 
 func (u *usm) Identifier() string {
-	return toHexStr(u.UserName, "")
+	return string(u.AuthEngineId) + ":" + string(u.UserName)
 }
 
 func (u *usm) GenerateRequestMessage(sendMsg message) (err error) {
@@ -580,4 +581,53 @@ func newSecurity(args *SNMPArguments) (sec security) {
 		}
 	}
 	return sec
+}
+
+type securityMap struct {
+	lock *sync.RWMutex
+	objs map[string]security
+}
+
+func (m *securityMap) Set(sec security) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.objs[sec.Identifier()] = sec
+}
+
+func (m *securityMap) Lookup(msg message) security {
+	var id string
+	switch mm := msg.(type) {
+	case *messageV1:
+		id = string(mm.Community)
+	case *messageV3:
+		id = string(mm.AuthEngineId) + ":" + string(mm.UserName)
+	}
+
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	return m.objs[id]
+}
+
+func (m *securityMap) List() []security {
+	ret := make([]security, 0, len(m.objs))
+
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	for _, v := range m.objs {
+		ret = append(ret, v)
+	}
+	return ret
+}
+
+func (m *securityMap) Delete(sec security) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	delete(m.objs, sec.Identifier())
+}
+
+func newSecurityMap() *securityMap {
+	return &securityMap{
+		lock: new(sync.RWMutex),
+		objs: map[string]security{},
+	}
 }

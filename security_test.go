@@ -311,3 +311,38 @@ func TestUsmTimeliness(t *testing.T) {
 		t.Errorf("Timeliness() - has error %v", err)
 	}
 }
+
+func TestSecurityMap(t *testing.T) {
+	sm := snmpgo.NewSecurityMap()
+	s1 := snmpgo.NewSecurity(&snmpgo.SNMPArguments{
+		Version:   snmpgo.V2c,
+		Community: "public",
+	})
+	s2 := snmpgo.NewSecurity(&snmpgo.SNMPArguments{
+		Version:   snmpgo.V2c,
+		Community: "private",
+	})
+	m1 := snmpgo.NewMessage(snmpgo.V2c)
+	snmpgo.ToMessageV1(m1).Community = []byte("public")
+	m2 := snmpgo.NewMessage(snmpgo.V2c)
+	snmpgo.ToMessageV1(m2).Community = []byte("private")
+
+	sm.Set(s1)
+	if sm.Lookup(m1) != s1 {
+		t.Error("Lookup() - not exists")
+	}
+	if sm.Lookup(m2) != nil {
+		t.Error("Lookup() - exists")
+	}
+
+	sm.Set(s2)
+	if sl := sm.List(); len(sl) != 2 {
+		t.Error("List() - invalid length")
+	}
+
+	sm.Delete(s1)
+	if sm.Lookup(m1) != nil {
+		t.Error("Delete() - failed to delete")
+
+	}
+}
