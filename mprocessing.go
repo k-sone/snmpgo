@@ -41,7 +41,7 @@ func (mp *messageProcessingV1) PrepareOutgoingMessage(
 func (mp *messageProcessingV1) PrepareDataElements(
 	sec security, recvMsg, sendMsg message) (Pdu, error) {
 
-	if sendMsg.Version() != recvMsg.Version() {
+	if sendMsg != nil && sendMsg.Version() != recvMsg.Version() {
 		return nil, &MessageError{
 			Message: fmt.Sprintf(
 				"SNMPVersion mismatch - expected [%v], actual [%v]",
@@ -55,19 +55,28 @@ func (mp *messageProcessingV1) PrepareDataElements(
 	}
 
 	pdu := recvMsg.Pdu()
-	if pdu.PduType() != GetResponse {
-		return nil, &MessageError{
-			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]",
-				GetResponse, pdu.PduType()),
+	if sendMsg != nil {
+		if pdu.PduType() != GetResponse {
+			return nil, &MessageError{
+				Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]",
+					GetResponse, pdu.PduType()),
+			}
+		}
+		if sendMsg.Pdu().RequestId() != pdu.RequestId() {
+			return nil, &MessageError{
+				Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
+					sendMsg.Pdu().RequestId(), pdu.RequestId()),
+				Detail: fmt.Sprintf("%s vs %s", sendMsg, recvMsg),
+			}
+		}
+	} else {
+		if t := pdu.PduType(); !confirmedType(t) && t != SNMPTrapV2 {
+			return nil, &MessageError{
+				Message: fmt.Sprintf("Illegal PduType - received [%v]", t),
+			}
 		}
 	}
-	if sendMsg.Pdu().RequestId() != pdu.RequestId() {
-		return nil, &MessageError{
-			Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
-				sendMsg.Pdu().RequestId(), pdu.RequestId()),
-			Detail: fmt.Sprintf("%s vs %s", sendMsg, recvMsg),
-		}
-	}
+
 	return pdu, nil
 }
 
@@ -121,6 +130,7 @@ func (mp *messageProcessingV3) PrepareOutgoingMessage(
 func (mp *messageProcessingV3) PrepareDataElements(
 	sec security, recvMsg, sendMsg message) (Pdu, error) {
 
+	// TODO support for receive message of v3
 	sm, _ := sendMsg.(*messageV3)
 	rm := recvMsg.(*messageV3)
 	if sm.Version() != rm.Version() {
