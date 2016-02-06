@@ -3,7 +3,7 @@ package snmpgo
 var StripHexPrefix = stripHexPrefix
 var ToHexStr = toHexStr
 var Retry = retry
-var NewNotInTimeWindowError = func() error { return &notInTimeWindowError{&ResponseError{}} }
+var NewNotInTimeWindowError = func() error { return &notInTimeWindowError{&MessageError{}} }
 
 // For snmpgo testing
 var NewSNMPEngine = newSNMPEngine

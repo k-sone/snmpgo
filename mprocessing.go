@@ -42,7 +42,7 @@ func (mp *messageProcessingV1) PrepareDataElements(
 	sec security, recvMsg, sendMsg message) (Pdu, error) {
 
 	if sendMsg.Version() != recvMsg.Version() {
-		return nil, &ResponseError{
+		return nil, &MessageError{
 			Message: fmt.Sprintf(
 				"SNMPVersion mismatch - expected [%v], actual [%v]",
 				sendMsg.Version(), recvMsg.Version()),
@@ -56,13 +56,13 @@ func (mp *messageProcessingV1) PrepareDataElements(
 
 	pdu := recvMsg.Pdu()
 	if pdu.PduType() != GetResponse {
-		return nil, &ResponseError{
+		return nil, &MessageError{
 			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]",
 				GetResponse, pdu.PduType()),
 		}
 	}
 	if sendMsg.Pdu().RequestId() != pdu.RequestId() {
-		return nil, &ResponseError{
+		return nil, &MessageError{
 			Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
 				sendMsg.Pdu().RequestId(), pdu.RequestId()),
 			Detail: fmt.Sprintf("%s vs %s", sendMsg, recvMsg),
@@ -124,21 +124,21 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	sm, _ := sendMsg.(*messageV3)
 	rm := recvMsg.(*messageV3)
 	if sm.Version() != rm.Version() {
-		return nil, &ResponseError{
+		return nil, &MessageError{
 			Message: fmt.Sprintf(
 				"SNMPVersion mismatch - expected [%v], actual [%v]", sm.Version(), rm.Version()),
 			Detail: fmt.Sprintf("%s vs %s", sm, rm),
 		}
 	}
 	if sm.MessageId != rm.MessageId {
-		return nil, &ResponseError{
+		return nil, &MessageError{
 			Message: fmt.Sprintf(
 				"MessageId mismatch - expected [%d], actual [%d]", sm.MessageId, rm.MessageId),
 			Detail: fmt.Sprintf("%s vs %s", sm, rm),
 		}
 	}
 	if rm.SecurityModel != securityUsm {
-		return nil, &ResponseError{
+		return nil, &MessageError{
 			Message: fmt.Sprintf("Unknown SecurityModel, value [%d]", rm.SecurityModel),
 		}
 	}
@@ -151,7 +151,7 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	switch t := pdu.PduType(); t {
 	case GetResponse:
 		if sm.Pdu().RequestId() != pdu.RequestId() {
-			return nil, &ResponseError{
+			return nil, &MessageError{
 				Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
 					sm.Pdu().RequestId(), pdu.RequestId()),
 				Detail: fmt.Sprintf("%s vs %s", sm, rm),
@@ -160,21 +160,21 @@ func (mp *messageProcessingV3) PrepareDataElements(
 
 		sPdu := sm.Pdu().(*ScopedPdu)
 		if !bytes.Equal(sPdu.ContextEngineId, pdu.ContextEngineId) {
-			return nil, &ResponseError{
+			return nil, &MessageError{
 				Message: fmt.Sprintf("ContextEngineId mismatch - expected [%s], actual [%s]",
 					toHexStr(sPdu.ContextEngineId, ""), toHexStr(pdu.ContextEngineId, "")),
 			}
 		}
 
 		if !bytes.Equal(sPdu.ContextName, pdu.ContextName) {
-			return nil, &ResponseError{
+			return nil, &MessageError{
 				Message: fmt.Sprintf("ContextName mismatch - expected [%s], actual [%s]",
 					toHexStr(sPdu.ContextName, ""), toHexStr(pdu.ContextName, "")),
 			}
 		}
 
 		if sm.Authentication() && !rm.Authentication() {
-			return nil, &ResponseError{
+			return nil, &MessageError{
 				Message: "Response message is not authenticated",
 			}
 		}
@@ -184,7 +184,7 @@ func (mp *messageProcessingV3) PrepareDataElements(
 		}
 		fallthrough
 	default:
-		return nil, &ResponseError{
+		return nil, &MessageError{
 			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]", GetResponse, t),
 		}
 	}
