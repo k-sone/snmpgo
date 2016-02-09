@@ -34,3 +34,8 @@ var NewSecurityMap = newSecurityMap
 
 func NewCommunity() *community { return &community{} }
 func NewUsm() *usm             { return &usm{} }
+
+// For server
+func ListeningUDPAddress(s *TrapServer) string {
+	return s.transport.(*packetTransport).conn.LocalAddr().String()
+}

@@ -583,6 +583,20 @@ func newSecurity(args *SNMPArguments) (sec security) {
 	return sec
 }
 
+func newSecurityFromEntry(entry *SecurityEntry) security {
+	switch entry.Version {
+	case V1, V2c:
+		return &community{
+			Community: []byte(entry.Community),
+		}
+	case V3:
+		// TODO
+		fallthrough
+	default:
+		return nil
+	}
+}
+
 type securityMap struct {
 	lock *sync.RWMutex
 	objs map[string]security
