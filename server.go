@@ -107,9 +107,6 @@ type TrapServer struct {
 	transport transport
 	serving   bool
 
-	// Trap Listener
-	Listener TrapListener
-
 	// Error Logger which will be used for logging of default errors
 	ErrorLog *log.Logger
 }
@@ -127,7 +124,9 @@ func (s *TrapServer) DeleteSecurity(entry *SecurityEntry) {
 }
 
 func (s *TrapServer) Serve(listener TrapListener) error {
-	s.Listener = listener
+	if listener == nil {
+		return &ArgumentError{Message: "listener is nil"}
+	}
 	s.serving = true
 	size := s.args.MessageMaxSize
 	if size < recvBufferSize {
@@ -158,7 +157,7 @@ func (s *TrapServer) Serve(listener TrapListener) error {
 					return
 				}
 
-				go s.handle(conn, msg, src, err)
+				go s.handle(listener, conn, msg, src, err)
 			}
 		}(conn)
 	}
@@ -170,7 +169,7 @@ func (s *TrapServer) Close() error {
 }
 
 // handle a newly received trap
-func (s *TrapServer) handle(conn interface{}, msg message, src net.Addr, err error) {
+func (s *TrapServer) handle(listener TrapListener, conn interface{}, msg message, src net.Addr, err error) {
 	defer func() {
 		if err := recover(); err != nil {
 			const size = 64 << 10
@@ -180,12 +179,6 @@ func (s *TrapServer) handle(conn interface{}, msg message, src net.Addr, err err
 
 		}
 	}()
-
-	l := s.Listener
-	if l == nil {
-		s.logf("trap: listener is not attached and trap information cannot be dispatched.")
-		return
-	}
 
 	var pdu Pdu
 	var sec security
@@ -219,7 +212,7 @@ func (s *TrapServer) handle(conn interface{}, msg message, src net.Addr, err err
 		}
 	}
 
-	l.OnTRAP(&TrapRequest{Pdu: pdu, Source: src, Error: err})
+	listener.OnTRAP(&TrapRequest{Pdu: pdu, Source: src, Error: err})
 
 	if pdu != nil && pdu.PduType() == InformRequest {
 		if err = s.informResponse(conn, src, sec, msg); err != nil && s.serving {
