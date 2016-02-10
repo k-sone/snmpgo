@@ -123,6 +123,8 @@ func (s *TrapServer) DeleteSecurity(entry *SecurityEntry) {
 	s.secs.Delete(newSecurityFromEntry(entry))
 }
 
+// Serve starts the SNMP trap receiver.
+// Serve blocks, the caller should call Close when finished, to shut it down.
 func (s *TrapServer) Serve(listener TrapListener) error {
 	if listener == nil {
 		return &ArgumentError{Message: "listener is nil"}
@@ -163,6 +165,7 @@ func (s *TrapServer) Serve(listener TrapListener) error {
 	}
 }
 
+// Close shuts down the server.
 func (s *TrapServer) Close() error {
 	s.serving = false
 	return s.transport.Close(nil)
@@ -242,6 +245,7 @@ func (s *TrapServer) logf(format string, args ...interface{}) {
 	}
 }
 
+// NewTrapServer returns a new Server and is using server arguments for configuration.
 func NewTrapServer(args ServerArguments) (*TrapServer, error) {
 	if err := args.validate(); err != nil {
 		return nil, err
