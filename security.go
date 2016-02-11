@@ -13,21 +13,30 @@ import (
 	"fmt"
 	"hash"
 	"math"
+	"sync"
 	"time"
 )
 
 type security interface {
-	GenerateRequestMessage(*SNMP, message) error
-	ProcessIncomingMessage(*SNMP, message, message) error
+	Identifier() string
+	GenerateRequestMessage(message) error
+	GenerateResponseMessage(message) error
+	ProcessIncomingMessage(message) error
 	Discover(*SNMP) error
 	String() string
 }
 
-type community struct{}
+type community struct {
+	Community []byte
+}
 
-func (c *community) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
+func (c *community) Identifier() string {
+	return string(c.Community)
+}
+
+func (c *community) GenerateRequestMessage(sendMsg message) (err error) {
 	m := sendMsg.(*messageV1)
-	m.Community = []byte(snmp.args.Community)
+	m.Community = c.Community
 
 	b, err := m.Pdu().Marshal()
 	if err != nil {
@@ -38,22 +47,25 @@ func (c *community) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err err
 	return
 }
 
-func (c *community) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err error) {
-	sm := sendMsg.(*messageV1)
+func (c *community) GenerateResponseMessage(sendMsg message) (err error) {
+	return c.GenerateRequestMessage(sendMsg)
+}
+
+func (c *community) ProcessIncomingMessage(recvMsg message) (err error) {
 	rm := recvMsg.(*messageV1)
 
-	if !bytes.Equal(sm.Community, rm.Community) {
-		return ResponseError{
+	if !bytes.Equal(c.Community, rm.Community) {
+		return &MessageError{
 			Message: fmt.Sprintf(
 				"Community mismatch - expected [%s], actual [%s]",
-				string(sm.Community), string(rm.Community)),
-			Detail: fmt.Sprintf("%s vs %s", sm, rm),
+				toHexStr(c.Community, ""), toHexStr(rm.Community, "")),
+			Detail: fmt.Sprintf("Message - [%s]", rm),
 		}
 	}
 
 	_, err = rm.Pdu().Unmarshal(rm.PduBytes())
 	if err != nil {
-		return ResponseError{
+		return &MessageError{
 			Cause:   err,
 			Message: "Failed to Unmarshal Pdu",
 			Detail:  fmt.Sprintf("Pdu Bytes - [%s]", toHexStr(rm.PduBytes(), " ")),
@@ -67,7 +79,7 @@ func (c *community) Discover(snmp *SNMP) error {
 }
 
 func (c *community) String() string {
-	return "{}"
+	return fmt.Sprintf(`{"Community": "%s"}`, toHexStr(c.Community, ""))
 }
 
 type discoveryStatus int
@@ -92,21 +104,30 @@ func (d discoveryStatus) String() string {
 }
 
 type usm struct {
+	UserName        []byte
 	DiscoveryStatus discoveryStatus
 	AuthEngineId    []byte
 	AuthEngineBoots int64
 	AuthEngineTime  int64
-	AuthKey         []byte
-	PrivKey         []byte
 	UpdatedTime     time.Time
+	AuthKey         []byte
+	AuthPassword    string
+	AuthProtocol    AuthProtocol
+	PrivKey         []byte
+	PrivPassword    string
+	PrivProtocol    PrivProtocol
 }
 
-func (u *usm) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
+func (u *usm) Identifier() string {
+	return string(u.AuthEngineId) + ":" + string(u.UserName)
+}
+
+func (u *usm) GenerateRequestMessage(sendMsg message) (err error) {
 	// setup message
 	m := sendMsg.(*messageV3)
 
 	if u.DiscoveryStatus > noDiscovered {
-		m.UserName = []byte(snmp.args.UserName)
+		m.UserName = u.UserName
 		m.AuthEngineId = u.AuthEngineId
 	}
 	if u.DiscoveryStatus > noSynchronized {
@@ -119,18 +140,7 @@ func (u *usm) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
 	}
 
 	// setup Pdu
-	p := sendMsg.Pdu().(*ScopedPdu)
-
-	if snmp.args.ContextEngineId != "" {
-		p.ContextEngineId, _ = engineIdToBytes(snmp.args.ContextEngineId)
-	} else {
-		p.ContextEngineId = m.AuthEngineId
-	}
-	if snmp.args.ContextName != "" {
-		p.ContextName = []byte(snmp.args.ContextName)
-	}
-
-	pduBytes, err := p.Marshal()
+	pduBytes, err := sendMsg.Pdu().Marshal()
 	if err != nil {
 		return
 	}
@@ -139,14 +149,14 @@ func (u *usm) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
 	if m.Authentication() {
 		// encrypt Pdu
 		if m.Privacy() {
-			err = encrypt(m, snmp.args.PrivProtocol, u.PrivKey)
+			err = encrypt(m, u.PrivProtocol, u.PrivKey)
 			if err != nil {
 				return
 			}
 		}
 
 		// get digest of whole message
-		digest, e := mac(m, snmp.args.AuthProtocol, u.AuthKey)
+		digest, e := mac(m, u.AuthProtocol, u.AuthKey)
 		if e != nil {
 			return e
 		}
@@ -156,59 +166,62 @@ func (u *usm) GenerateRequestMessage(snmp *SNMP, sendMsg message) (err error) {
 	return
 }
 
-func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err error) {
-	sm := sendMsg.(*messageV3)
+func (u *usm) GenerateResponseMessage(sendMsg message) (err error) {
+	return u.GenerateRequestMessage(sendMsg)
+}
+
+func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 	rm := recvMsg.(*messageV3)
 
 	// RFC3411 Section 5
 	if l := len(rm.AuthEngineId); l < 5 || l > 32 {
-		return ResponseError{
+		return &MessageError{
 			Message: fmt.Sprintf("AuthEngineId length is range 5..32, value [%s]",
 				toHexStr(rm.AuthEngineId, "")),
 		}
 	}
 	if rm.AuthEngineBoots < 0 || rm.AuthEngineBoots > math.MaxInt32 {
-		return ResponseError{
+		return &MessageError{
 			Message: fmt.Sprintf("AuthEngineBoots is range %d..%d, value [%d]",
 				0, math.MaxInt32, rm.AuthEngineBoots),
 		}
 	}
 	if rm.AuthEngineTime < 0 || rm.AuthEngineTime > math.MaxInt32 {
-		return ResponseError{
+		return &MessageError{
 			Message: fmt.Sprintf("AuthEngineTime is range %d..%d, value [%d]",
 				0, math.MaxInt32, rm.AuthEngineTime),
 		}
 	}
 	if u.DiscoveryStatus > noDiscovered {
-		if !bytes.Equal(sm.AuthEngineId, rm.AuthEngineId) {
-			return ResponseError{
+		if !bytes.Equal(u.AuthEngineId, rm.AuthEngineId) {
+			return &MessageError{
 				Message: fmt.Sprintf(
 					"AuthEngineId mismatch - expected [%s], actual [%s]",
-					toHexStr(sm.AuthEngineId, ""), toHexStr(rm.AuthEngineId, "")),
-				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+					toHexStr(u.AuthEngineId, ""), toHexStr(rm.AuthEngineId, "")),
+				Detail: fmt.Sprintf("Message - [%s]", rm),
 			}
 		}
-		if !bytes.Equal(sm.UserName, rm.UserName) {
-			return ResponseError{
+		if !bytes.Equal(u.UserName, rm.UserName) {
+			return &MessageError{
 				Message: fmt.Sprintf(
 					"UserName mismatch - expected [%s], actual [%s]",
-					string(sm.UserName), string(rm.UserName)),
-				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+					toHexStr(u.UserName, ""), toHexStr(rm.UserName, "")),
+				Detail: fmt.Sprintf("Message - [%s]", rm),
 			}
 		}
 	}
 
 	if rm.Authentication() {
 		// get & check digest of whole message
-		digest, e := mac(rm, snmp.args.AuthProtocol, u.AuthKey)
+		digest, e := mac(rm, u.AuthProtocol, u.AuthKey)
 		if e != nil {
-			return ResponseError{
+			return &MessageError{
 				Cause:   e,
 				Message: "Can't get a message digest",
 			}
 		}
 		if !hmac.Equal(rm.AuthParameter, digest) {
-			return ResponseError{
+			return &MessageError{
 				Message: fmt.Sprintf("Failed to authenticate - expected [%s], actual [%s]",
 					toHexStr(rm.AuthParameter, ""), toHexStr(digest, "")),
 			}
@@ -216,9 +229,9 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 
 		// decrypt Pdu
 		if rm.Privacy() {
-			e := decrypt(rm, snmp.args.PrivProtocol, u.PrivKey, rm.PrivParameter)
+			e := decrypt(rm, u.PrivProtocol, u.PrivKey, rm.PrivParameter)
 			if e != nil {
-				return ResponseError{
+				return &MessageError{
 					Cause:   e,
 					Message: "Can't decrypt a message",
 				}
@@ -244,7 +257,7 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 			u.DiscoveryStatus = discovered
 		}
 	case noDiscovered:
-		u.SetAuthEngineId(snmp, rm.AuthEngineId)
+		u.SetAuthEngineId(rm.AuthEngineId)
 		u.DiscoveryStatus = noSynchronized
 	}
 
@@ -254,37 +267,10 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 		if rm.Privacy() {
 			note = " (probably Pdu was unable to decrypt)"
 		}
-		return ResponseError{
+		return &MessageError{
 			Cause:   err,
 			Message: fmt.Sprintf("Failed to Unmarshal Pdu%s", note),
 			Detail:  fmt.Sprintf("Pdu Bytes - [%s]", toHexStr(rm.PduBytes(), " ")),
-		}
-	}
-	p := rm.Pdu().(*ScopedPdu)
-
-	if p.PduType() == GetResponse {
-		var cxtId []byte
-		if snmp.args.ContextEngineId != "" {
-			cxtId, _ = engineIdToBytes(snmp.args.ContextEngineId)
-		} else {
-			cxtId = u.AuthEngineId
-		}
-		if !bytes.Equal(cxtId, p.ContextEngineId) {
-			return ResponseError{
-				Message: fmt.Sprintf("ContextEngineId mismatch - expected [%s], actual [%s]",
-					toHexStr(cxtId, ""), toHexStr(p.ContextEngineId, "")),
-			}
-		}
-		if name := snmp.args.ContextName; name != string(p.ContextName) {
-			return ResponseError{
-				Message: fmt.Sprintf("ContextName mismatch - expected [%s], actual [%s]",
-					name, string(p.ContextName)),
-			}
-		}
-		if sm.Authentication() && !rm.Authentication() {
-			return ResponseError{
-				Message: "Response message is not authenticated",
-			}
 		}
 	}
 	return
@@ -293,7 +279,7 @@ func (u *usm) ProcessIncomingMessage(snmp *SNMP, sendMsg, recvMsg message) (err 
 func (u *usm) Discover(snmp *SNMP) (err error) {
 	if snmp.args.SecurityEngineId != "" {
 		securityEngineId, _ := engineIdToBytes(snmp.args.SecurityEngineId)
-		u.SetAuthEngineId(snmp, securityEngineId)
+		u.SetAuthEngineId(securityEngineId)
 		u.DiscoveryStatus = noSynchronized
 		return
 	}
@@ -324,13 +310,13 @@ func (u *usm) Discover(snmp *SNMP) (err error) {
 	return
 }
 
-func (u *usm) SetAuthEngineId(snmp *SNMP, authEngineId []byte) {
+func (u *usm) SetAuthEngineId(authEngineId []byte) {
 	u.AuthEngineId = authEngineId
-	if len(snmp.args.AuthPassword) > 0 {
-		u.AuthKey = passwordToKey(snmp.args.AuthProtocol, snmp.args.AuthPassword, authEngineId)
+	if len(u.AuthPassword) > 0 {
+		u.AuthKey = passwordToKey(u.AuthProtocol, u.AuthPassword, authEngineId)
 	}
-	if len(snmp.args.PrivPassword) > 0 {
-		u.PrivKey = passwordToKey(snmp.args.AuthProtocol, snmp.args.PrivPassword, authEngineId)
+	if len(u.PrivPassword) > 0 {
+		u.PrivKey = passwordToKey(u.AuthProtocol, u.PrivPassword, authEngineId)
 	}
 }
 
@@ -360,7 +346,7 @@ func (u *usm) CheckTimeliness(engineBoots, engineTime int64) error {
 	if engineBoots == math.MaxInt32 ||
 		engineBoots < u.AuthEngineBoots ||
 		(engineBoots == u.AuthEngineBoots && engineTime-u.AuthEngineTime > 150) {
-		return ResponseError{
+		return &MessageError{
 			Message: fmt.Sprintf(
 				"The message is not in the time window - local [%d/%d], remote [%d/%d]",
 				engineBoots, engineTime, u.AuthEngineBoots, u.AuthEngineTime),
@@ -371,10 +357,12 @@ func (u *usm) CheckTimeliness(engineBoots, engineTime int64) error {
 
 func (u *usm) String() string {
 	return fmt.Sprintf(
-		`{"DiscoveryStatus": "%s", "AuthEngineId": "%s", "AuthEngineBoots": "%d", `+
-			`"AuthEngineTime": "%d", "AuthKey": "%s", "PrivKey": "%s", "UpdatedTime": "%s"}`,
-		u.DiscoveryStatus, toHexStr(u.AuthEngineId, ""), u.AuthEngineBoots, u.AuthEngineTime,
-		toHexStr(u.AuthKey, ""), toHexStr(u.PrivKey, ""), u.UpdatedTime)
+		`{"UserName": "%s", "DiscoveryStatus": "%s", "AuthEngineId": "%s", `+
+			`"AuthEngineBoots": "%d", "AuthEngineTime": "%d", "UpdatedTime": "%s", `+
+			`"AuthKey": "%s", "AuthProtocol": "%s", "PrivKey": "%s", "PrivProtocol": "%s"}`,
+		toHexStr(u.UserName, ""), u.DiscoveryStatus, toHexStr(u.AuthEngineId, ""),
+		u.AuthEngineBoots, u.AuthEngineTime, u.UpdatedTime,
+		toHexStr(u.AuthKey, ""), u.AuthProtocol, toHexStr(u.PrivKey, ""), u.PrivProtocol)
 }
 
 func mac(msg *messageV3, proto AuthProtocol, key []byte) ([]byte, error) {
@@ -450,7 +438,6 @@ func decrypt(msg *messageV3, proto PrivProtocol, key, privParam []byte) (err err
 }
 
 func encryptDES(src, key []byte, engineBoots, salt int32) (dst, privParam []byte, err error) {
-
 	block, err := des.NewCipher(key[:8])
 	if err != nil {
 		return
@@ -471,16 +458,15 @@ func encryptDES(src, key []byte, engineBoots, salt int32) (dst, privParam []byte
 }
 
 func decryptDES(src, key, privParam []byte) (dst []byte, err error) {
-
 	if len(src)%des.BlockSize != 0 {
-		err = ArgumentError{
+		err = &ArgumentError{
 			Value:   len(src),
 			Message: "Invalid DES cipher length",
 		}
 		return
 	}
 	if len(privParam) != 8 {
-		err = ArgumentError{
+		err = &ArgumentError{
 			Value:   len(privParam),
 			Message: "Invalid DES PrivParameter length",
 		}
@@ -528,7 +514,7 @@ func decryptAES(src, key, privParam []byte, engineBoots, engineTime int32) (
 	dst []byte, err error) {
 
 	if len(privParam) != 8 {
-		err = ArgumentError{
+		err = &ArgumentError{
 			Value:   len(privParam),
 			Message: "Invalid AES PrivParameter length",
 		}
@@ -577,4 +563,85 @@ func passwordToKey(proto AuthProtocol, password string, engineId []byte) []byte 
 	h.Write(engineId)
 	h.Write(ku)
 	return h.Sum(nil)
+}
+
+func newSecurity(args *SNMPArguments) (sec security) {
+	switch args.Version {
+	case V1, V2c:
+		sec = &community{
+			Community: []byte(args.Community),
+		}
+	case V3:
+		sec = &usm{
+			UserName:     []byte(args.UserName),
+			AuthPassword: args.AuthPassword,
+			AuthProtocol: args.AuthProtocol,
+			PrivPassword: args.PrivPassword,
+			PrivProtocol: args.PrivProtocol,
+		}
+	}
+	return sec
+}
+
+func newSecurityFromEntry(entry *SecurityEntry) security {
+	switch entry.Version {
+	case V1, V2c:
+		return &community{
+			Community: []byte(entry.Community),
+		}
+	case V3:
+		// TODO
+		fallthrough
+	default:
+		return nil
+	}
+}
+
+type securityMap struct {
+	lock *sync.RWMutex
+	objs map[string]security
+}
+
+func (m *securityMap) Set(sec security) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.objs[sec.Identifier()] = sec
+}
+
+func (m *securityMap) Lookup(msg message) security {
+	var id string
+	switch mm := msg.(type) {
+	case *messageV1:
+		id = string(mm.Community)
+	case *messageV3:
+		id = string(mm.AuthEngineId) + ":" + string(mm.UserName)
+	}
+
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	return m.objs[id]
+}
+
+func (m *securityMap) List() []security {
+	ret := make([]security, 0, len(m.objs))
+
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	for _, v := range m.objs {
+		ret = append(ret, v)
+	}
+	return ret
+}
+
+func (m *securityMap) Delete(sec security) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	delete(m.objs, sec.Identifier())
+}
+
+func newSecurityMap() *securityMap {
+	return &securityMap{
+		lock: new(sync.RWMutex),
+		objs: map[string]security{},
+	}
 }

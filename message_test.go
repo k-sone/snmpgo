@@ -9,7 +9,7 @@ import (
 
 func TestMessageV1(t *testing.T) {
 	pdu := snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetRequest)
-	msg := snmpgo.ToMessageV1(snmpgo.NewMessage(snmpgo.V2c, pdu))
+	msg := snmpgo.ToMessageV1(snmpgo.NewMessageWithPdu(snmpgo.V2c, pdu))
 	b, _ := pdu.Marshal()
 	msg.SetPduBytes(b)
 	msg.Community = []byte("MyCommunity")
@@ -31,7 +31,7 @@ func TestMessageV1(t *testing.T) {
 	expStr := `{"Version": "2c", "Community": "MyCommunity", ` +
 		`"Pdu": {"Type": "GetRequest", "RequestId": "0", "ErrorStatus": ` +
 		`"NoError", "ErrorIndex": "0", "VarBinds": []}}`
-	m := snmpgo.NewMessage(snmpgo.V2c, pdu)
+	m := snmpgo.NewMessageWithPdu(snmpgo.V2c, pdu)
 	rest, err := m.Unmarshal(buf)
 	if len(rest) != 0 || err != nil {
 		t.Errorf("Unmarshal() - len[%d] err[%v]", len(rest), err)
@@ -43,7 +43,7 @@ func TestMessageV1(t *testing.T) {
 
 func TestMessageV3(t *testing.T) {
 	pdu := snmpgo.NewPdu(snmpgo.V3, snmpgo.GetRequest)
-	msg := snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
+	msg := snmpgo.ToMessageV3(snmpgo.NewMessageWithPdu(snmpgo.V3, pdu))
 	b, _ := pdu.Marshal()
 	msg.SetPduBytes(b)
 	msg.MessageId = 123
@@ -85,7 +85,7 @@ func TestMessageV3(t *testing.T) {
 		`"PrivParameter": "dd:ee:ff"}, "Pdu": {"Type": "GetRequest", "RequestId": "0", ` +
 		`"ErrorStatus": "NoError", "ErrorIndex": "0", "ContextEngineId": "", ` +
 		`"ContextName": "", "VarBinds": []}}`
-	m := snmpgo.NewMessage(snmpgo.V3, pdu)
+	m := snmpgo.NewMessageWithPdu(snmpgo.V3, pdu)
 	rest, err := m.Unmarshal(buf)
 	if len(rest) != 0 || err != nil {
 		t.Errorf("Unmarshal() - len[%d] err[%v]", len(rest), err)
@@ -95,140 +95,54 @@ func TestMessageV3(t *testing.T) {
 	}
 }
 
-func TestMessageProcessingV1(t *testing.T) {
-	snmp, _ := snmpgo.NewSNMP(snmpgo.SNMPArguments{
-		Version:   snmpgo.V2c,
-		Community: "public",
-	})
-	mp := snmpgo.NewMessageProcessing(snmpgo.V2c)
-	pdu := snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetRequest)
+func TestUnmarshalMessageV1(t *testing.T) {
+	buf := []byte{
+		0x30, 0x1d, 0x02, 0x01, 0x01, 0x04, 0x0b, 0x4d, 0x79, 0x43, 0x6f,
+		0x6d, 0x6d, 0x75, 0x6e, 0x69, 0x74, 0x79, 0xa0, 0x0b, 0x02, 0x01,
+		0x00, 0x02, 0x01, 0x00, 0x02, 0x01, 0x00, 0x30, 0x00, 0x00, 0x00,
+	}
+	expRest := []byte{0x00, 0x00}
 
-	msg, err := mp.PrepareOutgoingMessage(snmp, pdu)
+	msg, rest, err := snmpgo.UnmarshalMessage(buf)
 	if err != nil {
-		t.Errorf("PrepareOutgoingMessage() - has error %v", err)
+		t.Errorf("unmarshalMessage() : %v", err)
 	}
-	if len(msg.PduBytes()) == 0 {
-		t.Error("PrepareOutgoingMessage() - pdu bytes")
+	if !bytes.Equal(expRest, rest) {
+		t.Errorf("unmarshalMessage() - expected [%s], actual [%s]",
+			snmpgo.ToHexStr(expRest, " "), snmpgo.ToHexStr(buf, " "))
 	}
-	if pdu.RequestId() == 0 {
-		t.Error("PrepareOutgoingMessage() - request id")
+	if msg == nil {
+		t.Errorf("unmarshalMessage() - message is nil")
 	}
-	requestId := pdu.RequestId()
-
-	_, err = mp.PrepareDataElements(snmp, msg, []byte{0x00, 0x00})
-	if err == nil {
-		t.Error("PrepareDataElements() - message unmarshal error")
-	}
-
-	b, _ := msg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
-	if err == nil {
-		t.Error("PrepareDataElements() - pdu type check")
-	}
-
-	pdu = snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetResponse)
-	rmsg := snmpgo.ToMessageV1(snmpgo.NewMessage(snmpgo.V1, pdu))
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
-	if err == nil {
-		t.Error("PrepareDataElements() - version check")
-	}
-
-	pdu.SetRequestId(requestId)
-	pduBytes, _ := pdu.Marshal()
-	rmsg = snmpgo.ToMessageV1(snmpgo.NewMessage(snmpgo.V2c, pdu))
-	rmsg.Community = []byte("public")
-	rmsg.SetPduBytes(pduBytes)
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
-	if err != nil {
-		t.Errorf("PrepareDataElements() - has error %v", err)
+	if snmpgo.ToMessageV1 == nil {
+		t.Errorf("unmarshalMessage() - message is not messageV1")
 	}
 }
 
-func TestMessageProcessingV3(t *testing.T) {
-	snmp, _ := snmpgo.NewSNMP(snmpgo.SNMPArguments{
-		Version:       snmpgo.V3,
-		UserName:      "myName",
-		SecurityLevel: snmpgo.AuthPriv,
-		AuthPassword:  "aaaaaaaa",
-		AuthProtocol:  snmpgo.Md5,
-		PrivPassword:  "bbbbbbbb",
-		PrivProtocol:  snmpgo.Des,
-	})
-	mp := snmpgo.NewMessageProcessing(snmpgo.V3)
-	usm := snmpgo.ToUsm(mp.Security())
-	usm.AuthKey = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-	usm.PrivKey = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-	pdu := snmpgo.NewPdu(snmpgo.V3, snmpgo.GetRequest)
+func TestUnmarshalMessageV3(t *testing.T) {
+	buf := []byte{
+		0x30, 0x4b, 0x02, 0x01, 0x03, 0x30, 0x0d, 0x02, 0x01, 0x7b,
+		0x02, 0x02, 0x01, 0x41, 0x04, 0x01, 0x07, 0x02, 0x01, 0x03,
+		0x04, 0x24, 0x30, 0x22, 0x04, 0x08, 0x80, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+		0x02, 0x02, 0x01, 0xc8, 0x02, 0x02, 0x02, 0x8e, 0x04, 0x04, 0x55, 0x73, 0x65, 0x72,
+		0x04, 0x03, 0xaa, 0xbb, 0xcc, 0x04, 0x03, 0xdd, 0xee, 0xff,
+		0x30, 0x11, 0x04, 0x00, 0x04, 0x00, 0xa0, 0x0b, 0x02, 0x01,
+		0x00, 0x02, 0x01, 0x00, 0x02, 0x01, 0x00, 0x30, 0x00, 0x00, 0x00,
+	}
+	expRest := []byte{0x00, 0x00}
 
-	msg, err := mp.PrepareOutgoingMessage(snmp, pdu)
+	msg, rest, err := snmpgo.UnmarshalMessage(buf)
 	if err != nil {
-		t.Errorf("PrepareOutgoingMessage() - has error %v", err)
+		t.Errorf("unmarshalMessage() : %v", err)
 	}
-	if len(msg.PduBytes()) == 0 {
-		t.Error("PrepareOutgoingMessage() - pdu bytes")
+	if !bytes.Equal(expRest, rest) {
+		t.Errorf("unmarshalMessage() - expected [%s], actual [%s]",
+			snmpgo.ToHexStr(expRest, " "), snmpgo.ToHexStr(buf, " "))
 	}
-	if pdu.RequestId() == 0 {
-		t.Error("PrepareOutgoingMessage() - request id")
+	if msg == nil {
+		t.Errorf("unmarshalMessage() - message is nil")
 	}
-	msgv3 := snmpgo.ToMessageV3(msg)
-	if msgv3.MessageId == 0 {
-		t.Error("PrepareOutgoingMessage() - message id")
-	}
-	if !msgv3.Reportable() || !msgv3.Authentication() || !msgv3.Privacy() {
-		t.Error("PrepareOutgoingMessage() - security flag")
-	}
-	msgv3.SetAuthentication(false)
-	msgv3.SetPrivacy(false)
-	msgv3.AuthEngineId = []byte{0, 0, 0, 0, 0}
-	requestId := pdu.RequestId()
-	messageId := msgv3.MessageId
-
-	_, err = mp.PrepareDataElements(snmp, msg, []byte{0x00, 0x00})
-	if err == nil {
-		t.Error("PrepareDataElements() - message unmarshal error")
-	}
-
-	b, _ := msg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
-	if err == nil {
-		t.Error("PrepareDataElements() - pdu type check")
-	}
-
-	pdu = snmpgo.NewPdu(snmpgo.V3, snmpgo.GetResponse)
-	rmsg := snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
-	if err == nil {
-		t.Error("PrepareDataElements() - message id check")
-	}
-
-	rmsg = snmpgo.ToMessageV3(snmpgo.NewMessage(snmpgo.V3, pdu))
-	rmsg.AuthEngineId = []byte{0, 0, 0, 0, 0}
-	rmsg.MessageId = messageId
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
-	if err == nil {
-		t.Error("PrepareDataElements() - security model check")
-	}
-
-	pdu.(*snmpgo.ScopedPdu).ContextEngineId = rmsg.AuthEngineId
-	pduBytes, _ := pdu.Marshal()
-	rmsg.SetPduBytes(pduBytes)
-	rmsg.SecurityModel = 3
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
-	if err == nil {
-		t.Error("PrepareDataElements() - request id check")
-	}
-
-	pdu.SetRequestId(requestId)
-	pduBytes, _ = pdu.Marshal()
-	rmsg.SetPduBytes(pduBytes)
-	b, _ = rmsg.Marshal()
-	_, err = mp.PrepareDataElements(snmp, msg, b)
-	if err != nil {
-		t.Errorf("PrepareDataElements() - has error %v", err)
+	if snmpgo.ToMessageV3 == nil {
+		t.Errorf("unmarshalMessage() - message is not messageV3")
 	}
 }

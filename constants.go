@@ -168,6 +168,28 @@ const (
 	Aes PrivProtocol = "AES"
 )
 
+type securityModel int
+
+const (
+	// RFC 3411 Section 6.1
+	securitySNMPv1 = iota + 1
+	securitySNMPv2c
+	securityUsm
+)
+
+func (s securityModel) String() string {
+	switch s {
+	case securitySNMPv1:
+		return "SNMPv1"
+	case securitySNMPv2c:
+		return "SNMPv2c"
+	case securityUsm:
+		return "USM"
+	default:
+		return "Unknown"
+	}
+}
+
 const (
 	timeoutDefault = 5 * time.Second
 	recvBufferSize = 1 << 11

@@ -13,18 +13,18 @@ type ArgumentError struct {
 	Message string      // Error message
 }
 
-func (e ArgumentError) Error() string {
+func (e *ArgumentError) Error() string {
 	return fmt.Sprintf("%s, value `%v`", e.Message, e.Value)
 }
 
-// A ResponseError suggests that the response from the remote agent is wrong or is not obtained
-type ResponseError struct {
+// A MessageError suggests that the received message is wrong or is not obtained
+type MessageError struct {
 	Cause   error  // Cause of the error
 	Message string // Error message
 	Detail  string // Detail of the error for debugging
 }
 
-func (e ResponseError) Error() string {
+func (e *MessageError) Error() string {
 	if e.Cause == nil {
 		return e.Message
 	} else {
@@ -33,5 +33,5 @@ func (e ResponseError) Error() string {
 }
 
 type notInTimeWindowError struct {
-	ResponseError
+	error
 }

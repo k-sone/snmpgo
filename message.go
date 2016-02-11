@@ -58,57 +58,37 @@ func (msg *messageV1) Marshal() (b []byte, err error) {
 	return asn1.Marshal(raw)
 }
 
-func (msg *messageV1) Unmarshal(b []byte) (rest []byte, err error) {
-	var raw asn1.RawValue
-	rest, err = asn1.Unmarshal(b, &raw)
+func (msg *messageV1) Unmarshal(b []byte) ([]byte, error) {
+	ver, rest, next, err := unmarshalMessageVersion(b)
 	if err != nil {
-		return
-	}
-	if raw.Class != classUniversal || raw.Tag != tagSequence || !raw.IsCompound {
-		return nil, asn1.StructuralError{fmt.Sprintf(
-			"Invalid messageV1 object - Class [%02x], Tag [%02x] : [%s]",
-			raw.Class, raw.Tag, toHexStr(b, " "))}
+		return nil, err
 	}
 
-	next := raw.Bytes
-
-	var version int
-	next, err = asn1.Unmarshal(next, &version)
+	err = msg.unmarshalInner(next)
 	if err != nil {
-		return
+		return nil, err
 	}
 
+	msg.version = ver
+	return rest, nil
+}
+
+func (msg *messageV1) unmarshalInner(b []byte) error {
 	var community []byte
-	next, err = asn1.Unmarshal(next, &community)
+	next, err := asn1.Unmarshal(b, &community)
 	if err != nil {
-		return
+		return err
 	}
 
-	msg.version = SNMPVersion(version)
 	msg.Community = community
 	msg.pduBytes = next
-	return
+	return nil
 }
 
 func (msg *messageV1) String() string {
 	return fmt.Sprintf(
 		`{"Version": "%s", "Community": "%s", "Pdu": %s}`,
 		msg.version, msg.Community, msg.pdu.String())
-}
-
-type securityModel int
-
-const (
-	securityUsm = 3
-)
-
-func (s securityModel) String() string {
-	switch s {
-	case securityUsm:
-		return "USM"
-	default:
-		return "Unknown"
-	}
 }
 
 type globalDataV3 struct {
@@ -279,39 +259,34 @@ func (msg *messageV3) Marshal() (b []byte, err error) {
 	return asn1.Marshal(raw)
 }
 
-func (msg *messageV3) Unmarshal(b []byte) (rest []byte, err error) {
-	var raw asn1.RawValue
-	rest, err = asn1.Unmarshal(b, &raw)
+func (msg *messageV3) Unmarshal(b []byte) ([]byte, error) {
+	ver, rest, next, err := unmarshalMessageVersion(b)
 	if err != nil {
 		return nil, err
 	}
-	if raw.Class != classUniversal || raw.Tag != tagSequence || !raw.IsCompound {
-		return nil, asn1.StructuralError{fmt.Sprintf(
-			"Invalid messageV3 object - Class [%02x], Tag [%02x] : [%s]",
-			raw.FullBytes[0], tagSequence, toHexStr(b, " "))}
+
+	err = msg.unmarshalInner(next)
+	if err != nil {
+		return nil, err
 	}
 
-	next := raw.Bytes
+	msg.version = ver
+	return rest, nil
+}
 
-	var version int
-	next, err = asn1.Unmarshal(next, &version)
+func (msg *messageV3) unmarshalInner(b []byte) error {
+	next, err := msg.globalDataV3.Unmarshal(b)
 	if err != nil {
-		return
-	}
-
-	next, err = msg.globalDataV3.Unmarshal(next)
-	if err != nil {
-		return
+		return err
 	}
 
 	next, err = msg.securityParameterV3.Unmarshal(next)
 	if err != nil {
-		return
+		return err
 	}
 
-	msg.version = SNMPVersion(version)
 	msg.pduBytes = next
-	return
+	return nil
 }
 
 func (msg *messageV3) String() string {
@@ -321,7 +296,17 @@ func (msg *messageV3) String() string {
 		msg.pdu.String())
 }
 
-func newMessage(ver SNMPVersion, pdu Pdu) (msg message) {
+func newMessage(ver SNMPVersion) (msg message) {
+	switch ver {
+	case V1, V2c:
+		msg = newMessageWithPdu(ver, &PduV1{})
+	case V3:
+		msg = newMessageWithPdu(ver, &ScopedPdu{})
+	}
+	return
+}
+
+func newMessageWithPdu(ver SNMPVersion, pdu Pdu) (msg message) {
 	m := messageV1{
 		version: ver,
 		pdu:     pdu,
@@ -338,174 +323,43 @@ func newMessage(ver SNMPVersion, pdu Pdu) (msg message) {
 	return
 }
 
-type messageProcessing interface {
-	Security() security
-	PrepareOutgoingMessage(*SNMP, Pdu) (message, error)
-	PrepareDataElements(*SNMP, message, []byte) (Pdu, error)
-}
-
-type messageProcessingV1 struct {
-	security security
-}
-
-func (mp *messageProcessingV1) Security() security {
-	return mp.security
-}
-
-func (mp *messageProcessingV1) PrepareOutgoingMessage(
-	snmp *SNMP, pdu Pdu) (msg message, err error) {
-
-	pdu.SetRequestId(genRequestId())
-	msg = newMessage(snmp.args.Version, pdu)
-
-	err = mp.security.GenerateRequestMessage(snmp, msg)
-	return
-}
-
-func (mp *messageProcessingV1) PrepareDataElements(
-	snmp *SNMP, sendMsg message, b []byte) (pdu Pdu, err error) {
-
-	pdu = &PduV1{}
-	recvMsg := newMessage(snmp.args.Version, pdu)
-	_, err = recvMsg.Unmarshal(b)
+func unmarshalMessage(b []byte) (message, []byte, error) {
+	ver, rest, next, err := unmarshalMessageVersion(b)
 	if err != nil {
-		return nil, ResponseError{
-			Cause:   err,
-			Message: "Failed to Unmarshal message",
-			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(b, " ")),
-		}
+		return nil, nil, err
 	}
 
-	if sendMsg.Version() != recvMsg.Version() {
-		return nil, ResponseError{
-			Message: fmt.Sprintf(
-				"SNMPVersion mismatch - expected [%v], actual [%v]",
-				sendMsg.Version(), recvMsg.Version()),
-			Detail: fmt.Sprintf("%s vs %s", sendMsg, recvMsg),
-		}
+	msg := newMessage(ver)
+	switch m := msg.(type) {
+	case *messageV1:
+		err = m.unmarshalInner(next)
+	case *messageV3:
+		err = m.unmarshalInner(next)
 	}
-
-	err = mp.security.ProcessIncomingMessage(snmp, sendMsg, recvMsg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if recvMsg.Pdu().PduType() != GetResponse {
-		return nil, ResponseError{
-			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]",
-				GetResponse, recvMsg.Pdu().PduType()),
-		}
-	}
-	if sendMsg.Pdu().RequestId() != recvMsg.Pdu().RequestId() {
-		return nil, ResponseError{
-			Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
-				sendMsg.Pdu().RequestId(), recvMsg.Pdu().RequestId()),
-			Detail: fmt.Sprintf("%s vs %s", sendMsg, recvMsg),
-		}
-	}
-	return
+	return msg, rest, nil
 }
 
-type messageProcessingV3 struct {
-	security security
-}
-
-func (mp *messageProcessingV3) Security() security {
-	return mp.security
-}
-
-func (mp *messageProcessingV3) PrepareOutgoingMessage(
-	snmp *SNMP, pdu Pdu) (msg message, err error) {
-
-	pdu.SetRequestId(genRequestId())
-	msg = newMessage(snmp.args.Version, pdu)
-
-	m := msg.(*messageV3)
-	m.MessageId = genMessageId()
-	m.MessageMaxSize = snmp.args.MessageMaxSize
-	m.SecurityModel = securityUsm
-	m.SetReportable(confirmedType(pdu.PduType()))
-	if snmp.args.SecurityLevel >= AuthNoPriv {
-		m.SetAuthentication(true)
-		if snmp.args.SecurityLevel >= AuthPriv {
-			m.SetPrivacy(true)
-		}
-	}
-
-	err = mp.security.GenerateRequestMessage(snmp, msg)
-	return
-}
-
-func (mp *messageProcessingV3) PrepareDataElements(
-	snmp *SNMP, sendMsg message, b []byte) (pdu Pdu, err error) {
-
-	pdu = &ScopedPdu{}
-	recvMsg := newMessage(snmp.args.Version, pdu)
-	_, err = recvMsg.Unmarshal(b)
+func unmarshalMessageVersion(b []byte) (SNMPVersion, []byte, []byte, error) {
+	var raw asn1.RawValue
+	rest, err := asn1.Unmarshal(b, &raw)
 	if err != nil {
-		return nil, ResponseError{
-			Cause:   err,
-			Message: "Failed to Unmarshal message",
-			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(b, " ")),
-		}
+		return 0, nil, nil, err
+	}
+	if raw.Class != classUniversal || raw.Tag != tagSequence || !raw.IsCompound {
+		return 0, nil, nil, asn1.StructuralError{fmt.Sprintf(
+			"Invalid message object - Class [%02x], Tag [%02x] : [%s]",
+			raw.Class, raw.Tag, toHexStr(b, " "))}
 	}
 
-	sm := sendMsg.(*messageV3)
-	rm := recvMsg.(*messageV3)
-	if sm.Version() != rm.Version() {
-		return nil, ResponseError{
-			Message: fmt.Sprintf(
-				"SNMPVersion mismatch - expected [%v], actual [%v]", sm.Version(), rm.Version()),
-			Detail: fmt.Sprintf("%s vs %s", sm, rm),
-		}
-	}
-	if sm.MessageId != rm.MessageId {
-		return nil, ResponseError{
-			Message: fmt.Sprintf(
-				"MessageId mismatch - expected [%d], actual [%d]", sm.MessageId, rm.MessageId),
-			Detail: fmt.Sprintf("%s vs %s", sm, rm),
-		}
-	}
-	if rm.SecurityModel != securityUsm {
-		return nil, ResponseError{
-			Message: fmt.Sprintf("Unknown SecurityModel, value [%d]", rm.SecurityModel),
-		}
-	}
-
-	err = mp.security.ProcessIncomingMessage(snmp, sendMsg, recvMsg)
+	var version int
+	next, err := asn1.Unmarshal(raw.Bytes, &version)
 	if err != nil {
-		return nil, err
+		return 0, nil, nil, err
 	}
 
-	switch t := rm.Pdu().PduType(); t {
-	case GetResponse:
-		if sm.Pdu().RequestId() != rm.Pdu().RequestId() {
-			return nil, ResponseError{
-				Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
-					sm.Pdu().RequestId(), rm.Pdu().RequestId()),
-				Detail: fmt.Sprintf("%s vs %s", sm, rm),
-			}
-		}
-	case Report:
-		if sm.Reportable() {
-			break
-		}
-		fallthrough
-	default:
-		return nil, ResponseError{
-			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]", GetResponse, t),
-		}
-	}
-
-	return
-}
-
-func newMessageProcessing(ver SNMPVersion) (mp messageProcessing) {
-	switch ver {
-	case V1, V2c:
-		mp = &messageProcessingV1{security: &community{}}
-	case V3:
-		mp = &messageProcessingV3{security: &usm{}}
-	}
-	return
+	return SNMPVersion(version), rest, next, nil
 }

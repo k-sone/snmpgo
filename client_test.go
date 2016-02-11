@@ -94,7 +94,7 @@ func TestSNMPArguments(t *testing.T) {
 }
 
 func TestSNMP(t *testing.T) {
-	snmp, _ := snmpgo.NewSNMP(snmpgo.SNMPArguments{
+	_, err := snmpgo.NewSNMP(snmpgo.SNMPArguments{
 		Version:       snmpgo.V3,
 		UserName:      "MyName",
 		SecurityLevel: snmpgo.AuthPriv,
@@ -104,16 +104,7 @@ func TestSNMP(t *testing.T) {
 		PrivProtocol:  snmpgo.Des,
 	})
 
-	pdu := snmpgo.NewPdu(snmpgo.V3, snmpgo.Report)
-	err := snmpgo.SnmpCheckPdu(snmp, pdu)
 	if err != nil {
-		t.Errorf("checkPdu() - has error %v", err)
-	}
-
-	oids, _ := snmpgo.NewOids([]string{"1.3.6.1.6.3.11.2.1.1.0"})
-	pdu = snmpgo.NewPduWithOids(snmpgo.V3, snmpgo.Report, oids)
-	err = snmpgo.SnmpCheckPdu(snmp, pdu)
-	if err == nil {
 		t.Error("checkPdu() - report oid")
 	}
 }
