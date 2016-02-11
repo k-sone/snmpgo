@@ -8,7 +8,7 @@ import (
 	"github.com/k-sone/snmpgo"
 )
 
-func TestMessageProcessingV1(t *testing.T) {
+func TestMessageProcessingV1Request(t *testing.T) {
 	args := &snmpgo.SNMPArguments{
 		Version:   snmpgo.V2c,
 		Community: "public",
@@ -49,6 +49,48 @@ func TestMessageProcessingV1(t *testing.T) {
 	_, err = mp.PrepareDataElements(sec, rmsg, msg)
 	if err != nil {
 		t.Errorf("PrepareDataElements() - has error %v", err)
+	}
+}
+
+func TestMessageProcessingV1Receive(t *testing.T) {
+	args := &snmpgo.SNMPArguments{
+		Version:   snmpgo.V2c,
+		Community: "public",
+	}
+
+	mp := snmpgo.NewMessageProcessing(args.Version)
+	sec := snmpgo.NewSecurity(args)
+	pdu := snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetResponse)
+	pduBytes, _ := pdu.Marshal()
+	rmsg := snmpgo.ToMessageV1(snmpgo.NewMessageWithPdu(snmpgo.V2c, pdu))
+	rmsg.Community = []byte("public")
+	rmsg.SetPduBytes(pduBytes)
+	_, err := mp.PrepareDataElements(sec, rmsg, nil)
+	if err == nil {
+		t.Error("PrepareDataElements() - pdu type check")
+	}
+
+	pdu = snmpgo.NewPdu(snmpgo.V2c, snmpgo.SNMPTrapV2)
+	pduBytes, _ = pdu.Marshal()
+	rmsg = snmpgo.ToMessageV1(snmpgo.NewMessageWithPdu(snmpgo.V2c, pdu))
+	rmsg.Community = []byte("public")
+	rmsg.SetPduBytes(pduBytes)
+	_, err = mp.PrepareDataElements(sec, rmsg, nil)
+	if err != nil {
+		t.Errorf("PrepareDataElements() - has error %v", err)
+	}
+
+	pdu = snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetResponse)
+	pdu.SetRequestId(-1)
+	smsg, err := mp.PrepareResponseMessage(sec, pdu, rmsg)
+	if err != nil {
+		t.Errorf("PrepareResponseMessage() - has error %v", err)
+	}
+	if len(smsg.PduBytes()) == 0 {
+		t.Error("PrepareResponseMessage() - pdu bytes")
+	}
+	if pdu.RequestId() != rmsg.Pdu().RequestId() {
+		t.Error("PrepareResponseMessage() - request id")
 	}
 }
 

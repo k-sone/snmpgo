@@ -3,7 +3,7 @@ package snmpgo
 var StripHexPrefix = stripHexPrefix
 var ToHexStr = toHexStr
 var Retry = retry
-var NewNotInTimeWindowError = func() error { return &notInTimeWindowError{&ResponseError{}} }
+var NewNotInTimeWindowError = func() error { return &notInTimeWindowError{&MessageError{}} }
 
 // For snmpgo testing
 var NewSNMPEngine = newSNMPEngine
@@ -30,6 +30,12 @@ var EncryptDES = encryptDES
 var EncryptAES = encryptAES
 var DecryptDES = decryptDES
 var DecryptAES = decryptAES
+var NewSecurityMap = newSecurityMap
 
 func NewCommunity() *community { return &community{} }
 func NewUsm() *usm             { return &usm{} }
+
+// For server
+func ListeningUDPAddress(s *TrapServer) string {
+	return s.transport.(*packetTransport).conn.LocalAddr().String()
+}

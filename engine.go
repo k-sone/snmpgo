@@ -45,7 +45,7 @@ func (e *snmpEngine) SendPdu(pdu Pdu, conn net.Conn, args *SNMPArguments) (resul
 
 	var recvMsg message
 	if recvMsg, _, err = unmarshalMessage(buf); err != nil {
-		return nil, &ResponseError{
+		return nil, &MessageError{
 			Cause:   err,
 			Message: "Failed to Unmarshal message",
 			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(buf, " ")),
@@ -66,13 +66,13 @@ func (e *snmpEngine) checkPdu(pdu Pdu, args *SNMPArguments) (err error) {
 	if args.Version == V3 && pdu.PduType() == Report && len(varBinds) > 0 {
 		oid := varBinds[0].Oid.String()
 		rep := reportStatusOid(oid)
-		err = &ResponseError{
+		err = &MessageError{
 			Message: fmt.Sprintf("Received a report from the agent - %s(%s)", rep, oid),
 			Detail:  fmt.Sprintf("Pdu - %s", pdu),
 		}
 		// perhaps the agent has rebooted after the previous communication
 		if rep == usmStatsNotInTimeWindows {
-			err = &notInTimeWindowError{err.(*ResponseError)}
+			err = &notInTimeWindowError{err}
 		}
 	}
 	return

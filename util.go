@@ -60,7 +60,7 @@ func retry(retries int, f func() error) (err error) {
 				continue
 			}
 		case *notInTimeWindowError:
-			err = e.ResponseError
+			err = e.error
 			continue
 		}
 		return

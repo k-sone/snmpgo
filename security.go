@@ -13,12 +13,14 @@ import (
 	"fmt"
 	"hash"
 	"math"
+	"sync"
 	"time"
 )
 
 type security interface {
 	Identifier() string
 	GenerateRequestMessage(message) error
+	GenerateResponseMessage(message) error
 	ProcessIncomingMessage(message) error
 	Discover(*SNMP) error
 	String() string
@@ -29,7 +31,7 @@ type community struct {
 }
 
 func (c *community) Identifier() string {
-	return toHexStr(c.Community, "")
+	return string(c.Community)
 }
 
 func (c *community) GenerateRequestMessage(sendMsg message) (err error) {
@@ -45,11 +47,15 @@ func (c *community) GenerateRequestMessage(sendMsg message) (err error) {
 	return
 }
 
+func (c *community) GenerateResponseMessage(sendMsg message) (err error) {
+	return c.GenerateRequestMessage(sendMsg)
+}
+
 func (c *community) ProcessIncomingMessage(recvMsg message) (err error) {
 	rm := recvMsg.(*messageV1)
 
 	if !bytes.Equal(c.Community, rm.Community) {
-		return &ResponseError{
+		return &MessageError{
 			Message: fmt.Sprintf(
 				"Community mismatch - expected [%s], actual [%s]",
 				toHexStr(c.Community, ""), toHexStr(rm.Community, "")),
@@ -59,7 +65,7 @@ func (c *community) ProcessIncomingMessage(recvMsg message) (err error) {
 
 	_, err = rm.Pdu().Unmarshal(rm.PduBytes())
 	if err != nil {
-		return &ResponseError{
+		return &MessageError{
 			Cause:   err,
 			Message: "Failed to Unmarshal Pdu",
 			Detail:  fmt.Sprintf("Pdu Bytes - [%s]", toHexStr(rm.PduBytes(), " ")),
@@ -113,7 +119,7 @@ type usm struct {
 }
 
 func (u *usm) Identifier() string {
-	return toHexStr(u.UserName, "")
+	return string(u.AuthEngineId) + ":" + string(u.UserName)
 }
 
 func (u *usm) GenerateRequestMessage(sendMsg message) (err error) {
@@ -160,31 +166,35 @@ func (u *usm) GenerateRequestMessage(sendMsg message) (err error) {
 	return
 }
 
+func (u *usm) GenerateResponseMessage(sendMsg message) (err error) {
+	return u.GenerateRequestMessage(sendMsg)
+}
+
 func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 	rm := recvMsg.(*messageV3)
 
 	// RFC3411 Section 5
 	if l := len(rm.AuthEngineId); l < 5 || l > 32 {
-		return &ResponseError{
+		return &MessageError{
 			Message: fmt.Sprintf("AuthEngineId length is range 5..32, value [%s]",
 				toHexStr(rm.AuthEngineId, "")),
 		}
 	}
 	if rm.AuthEngineBoots < 0 || rm.AuthEngineBoots > math.MaxInt32 {
-		return &ResponseError{
+		return &MessageError{
 			Message: fmt.Sprintf("AuthEngineBoots is range %d..%d, value [%d]",
 				0, math.MaxInt32, rm.AuthEngineBoots),
 		}
 	}
 	if rm.AuthEngineTime < 0 || rm.AuthEngineTime > math.MaxInt32 {
-		return &ResponseError{
+		return &MessageError{
 			Message: fmt.Sprintf("AuthEngineTime is range %d..%d, value [%d]",
 				0, math.MaxInt32, rm.AuthEngineTime),
 		}
 	}
 	if u.DiscoveryStatus > noDiscovered {
 		if !bytes.Equal(u.AuthEngineId, rm.AuthEngineId) {
-			return &ResponseError{
+			return &MessageError{
 				Message: fmt.Sprintf(
 					"AuthEngineId mismatch - expected [%s], actual [%s]",
 					toHexStr(u.AuthEngineId, ""), toHexStr(rm.AuthEngineId, "")),
@@ -192,7 +202,7 @@ func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 			}
 		}
 		if !bytes.Equal(u.UserName, rm.UserName) {
-			return &ResponseError{
+			return &MessageError{
 				Message: fmt.Sprintf(
 					"UserName mismatch - expected [%s], actual [%s]",
 					toHexStr(u.UserName, ""), toHexStr(rm.UserName, "")),
@@ -205,13 +215,13 @@ func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 		// get & check digest of whole message
 		digest, e := mac(rm, u.AuthProtocol, u.AuthKey)
 		if e != nil {
-			return &ResponseError{
+			return &MessageError{
 				Cause:   e,
 				Message: "Can't get a message digest",
 			}
 		}
 		if !hmac.Equal(rm.AuthParameter, digest) {
-			return &ResponseError{
+			return &MessageError{
 				Message: fmt.Sprintf("Failed to authenticate - expected [%s], actual [%s]",
 					toHexStr(rm.AuthParameter, ""), toHexStr(digest, "")),
 			}
@@ -221,7 +231,7 @@ func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 		if rm.Privacy() {
 			e := decrypt(rm, u.PrivProtocol, u.PrivKey, rm.PrivParameter)
 			if e != nil {
-				return &ResponseError{
+				return &MessageError{
 					Cause:   e,
 					Message: "Can't decrypt a message",
 				}
@@ -257,7 +267,7 @@ func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 		if rm.Privacy() {
 			note = " (probably Pdu was unable to decrypt)"
 		}
-		return &ResponseError{
+		return &MessageError{
 			Cause:   err,
 			Message: fmt.Sprintf("Failed to Unmarshal Pdu%s", note),
 			Detail:  fmt.Sprintf("Pdu Bytes - [%s]", toHexStr(rm.PduBytes(), " ")),
@@ -336,7 +346,7 @@ func (u *usm) CheckTimeliness(engineBoots, engineTime int64) error {
 	if engineBoots == math.MaxInt32 ||
 		engineBoots < u.AuthEngineBoots ||
 		(engineBoots == u.AuthEngineBoots && engineTime-u.AuthEngineTime > 150) {
-		return &ResponseError{
+		return &MessageError{
 			Message: fmt.Sprintf(
 				"The message is not in the time window - local [%d/%d], remote [%d/%d]",
 				engineBoots, engineTime, u.AuthEngineBoots, u.AuthEngineTime),
@@ -571,4 +581,67 @@ func newSecurity(args *SNMPArguments) (sec security) {
 		}
 	}
 	return sec
+}
+
+func newSecurityFromEntry(entry *SecurityEntry) security {
+	switch entry.Version {
+	case V1, V2c:
+		return &community{
+			Community: []byte(entry.Community),
+		}
+	case V3:
+		// TODO
+		fallthrough
+	default:
+		return nil
+	}
+}
+
+type securityMap struct {
+	lock *sync.RWMutex
+	objs map[string]security
+}
+
+func (m *securityMap) Set(sec security) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.objs[sec.Identifier()] = sec
+}
+
+func (m *securityMap) Lookup(msg message) security {
+	var id string
+	switch mm := msg.(type) {
+	case *messageV1:
+		id = string(mm.Community)
+	case *messageV3:
+		id = string(mm.AuthEngineId) + ":" + string(mm.UserName)
+	}
+
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	return m.objs[id]
+}
+
+func (m *securityMap) List() []security {
+	ret := make([]security, 0, len(m.objs))
+
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+	for _, v := range m.objs {
+		ret = append(ret, v)
+	}
+	return ret
+}
+
+func (m *securityMap) Delete(sec security) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	delete(m.objs, sec.Identifier())
+}
+
+func newSecurityMap() *securityMap {
+	return &securityMap{
+		lock: new(sync.RWMutex),
+		objs: map[string]security{},
+	}
 }
