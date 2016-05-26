@@ -1,3 +1,7 @@
+## 2.0.1 (2016/05/26)
+
+- Raise an error when unmarshalling an invalid SNMP version
+
 ## 2.0.0 (2016/02/11)
 
 - Support for receiving of trap events (V2c only) [#4](https://github.com/k-sone/snmpgo/pull/4)
