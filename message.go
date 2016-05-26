@@ -335,6 +335,10 @@ func unmarshalMessage(b []byte) (message, []byte, error) {
 		err = m.unmarshalInner(next)
 	case *messageV3:
 		err = m.unmarshalInner(next)
+	default:
+		err = &MessageError{
+			Message: fmt.Sprintf("Invalid SNMP Version - %v(%d)", ver, ver),
+		}
 	}
 	if err != nil {
 		return nil, nil, err
