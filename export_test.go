@@ -1,5 +1,9 @@
 package snmpgo
 
+import (
+	"time"
+)
+
 var StripHexPrefix = stripHexPrefix
 var ToHexStr = toHexStr
 var Retry = retry
@@ -37,5 +41,12 @@ func NewUsm() *usm             { return &usm{} }
 
 // For server
 func ListeningUDPAddress(s *TrapServer) string {
-	return s.transport.(*packetTransport).conn.LocalAddr().String()
+	for i := 0; i < 12; i++ {
+		if conn := s.transport.(*packetTransport).conn; conn != nil {
+			return conn.LocalAddr().String()
+		}
+		// XXX Wait until a connection is available, but this code is a kludge
+		time.Sleep(time.Millisecond * time.Duration(1<<uint(i)))
+	}
+	return ""
 }
