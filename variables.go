@@ -209,10 +209,10 @@ func NewOid(s string) (oid *Oid, err error) {
 	o := make(asn1.ObjectIdentifier, len(subids))
 	for i, v := range subids {
 		o[i], err = strconv.Atoi(v)
-		if err != nil || o[i] < 0 || o[i] > math.MaxUint32 {
+		if err != nil || o[i] < 0 || int64(o[i]) > math.MaxUint32 {
 			return nil, &ArgumentError{
 				Value:   s,
-				Message: fmt.Sprintf("The sub-identifiers is range %d..%d", 0, math.MaxUint32),
+				Message: fmt.Sprintf("The sub-identifiers is range %d..%d", 0, int64(math.MaxUint32)),
 			}
 		}
 	}
