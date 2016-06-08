@@ -11,54 +11,49 @@ type snmpEngine struct {
 	sec security
 }
 
-func (e *snmpEngine) SendPdu(pdu Pdu, conn net.Conn, args *SNMPArguments) (result Pdu, err error) {
+func (e *snmpEngine) SendPdu(pdu Pdu, conn net.Conn, args *SNMPArguments) (Pdu, error) {
 	size := args.MessageMaxSize
 	if size < recvBufferSize {
 		size = recvBufferSize
 	}
 
-	var sendMsg message
-	sendMsg, err = e.mp.PrepareOutgoingMessage(e.sec, pdu, args)
+	sendMsg, err := e.mp.PrepareOutgoingMessage(e.sec, pdu, args)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	var buf []byte
 	buf, err = sendMsg.Marshal()
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if err = conn.SetDeadline(time.Now().Add(args.Timeout)); err != nil {
-		return
+		return nil, err
 	}
 	_, err = conn.Write(buf)
 	if !confirmedType(pdu.PduType()) || err != nil {
-		return
+		return nil, err
 	}
 
 	buf = make([]byte, size)
 	_, err = conn.Read(buf)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	var recvMsg message
-	if recvMsg, _, err = unmarshalMessage(buf); err != nil {
-		return nil, &MessageError{
-			Cause:   err,
-			Message: "Failed to Unmarshal message",
-			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(buf, " ")),
-		}
+	result, err := e.parseBuffer(buf, sendMsg)
+	if err != nil {
+		return nil, err
 	}
 
-	result, err = e.mp.PrepareDataElements(e.sec, recvMsg, sendMsg)
 	if result != nil && len(pdu.VarBinds()) > 0 {
 		if err = e.checkPdu(result, args); err != nil {
-			result = nil
+			return nil, err
 		}
 	}
-	return
+
+	return result, nil
 }
 
 func (e *snmpEngine) checkPdu(pdu Pdu, args *SNMPArguments) (err error) {
@@ -86,9 +81,38 @@ func (e *snmpEngine) String() string {
 	return fmt.Sprintf(`{"sec": %s}`, e.sec.String())
 }
 
+func (e *snmpEngine) parseBuffer(buf []byte, sendMsg message) (Pdu, error) {
+	var (
+		recvMsg message
+		err     error
+	)
+
+	if recvMsg, _, err = unmarshalMessage(buf); err != nil {
+		return nil, &MessageError{
+			Cause:   err,
+			Message: "Failed to Unmarshal message",
+			Detail:  fmt.Sprintf("message Bytes - [%s]", toHexStr(buf, " ")),
+		}
+	}
+
+	return e.mp.PrepareDataElements(e.sec, recvMsg, sendMsg)
+}
+
+func (e *snmpEngine) ParseBuffer(buf []byte) (Pdu, error) {
+	return e.parseBuffer(buf, nil)
+}
+
 func newSNMPEngine(args *SNMPArguments) *snmpEngine {
 	return &snmpEngine{
 		mp:  newMessageProcessing(args.Version),
 		sec: newSecurity(args),
 	}
+}
+
+type Parser interface {
+	ParseBuffer(buf []byte) (Pdu, error)
+}
+
+func NewParser(args *SNMPArguments) Parser {
+	return newSNMPEngine(args)
 }

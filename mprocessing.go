@@ -158,20 +158,22 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	sec security, recvMsg, sendMsg message) (Pdu, error) {
 
 	// TODO support for receive message of v3
-	sm, _ := sendMsg.(*messageV3)
 	rm := recvMsg.(*messageV3)
-	if sm.Version() != rm.Version() {
-		return nil, &MessageError{
-			Message: fmt.Sprintf(
-				"SNMPVersion mismatch - expected [%v], actual [%v]", sm.Version(), rm.Version()),
-			Detail: fmt.Sprintf("%s vs %s", sm, rm),
+	sm, _ := sendMsg.(*messageV3)
+	if sm != nil {
+		if sm.Version() != rm.Version() {
+			return nil, &MessageError{
+				Message: fmt.Sprintf(
+					"SNMPVersion mismatch - expected [%v], actual [%v]", sm.Version(), rm.Version()),
+				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+			}
 		}
-	}
-	if sm.MessageId != rm.MessageId {
-		return nil, &MessageError{
-			Message: fmt.Sprintf(
-				"MessageId mismatch - expected [%d], actual [%d]", sm.MessageId, rm.MessageId),
-			Detail: fmt.Sprintf("%s vs %s", sm, rm),
+		if sm.MessageId != rm.MessageId {
+			return nil, &MessageError{
+				Message: fmt.Sprintf(
+					"MessageId mismatch - expected [%d], actual [%d]", sm.MessageId, rm.MessageId),
+				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+			}
 		}
 	}
 	if rm.SecurityModel != securityUsm {
@@ -187,6 +189,9 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	pdu, _ := recvMsg.Pdu().(*ScopedPdu)
 	switch t := pdu.PduType(); t {
 	case GetResponse:
+		if sm == nil {
+			break
+		}
 		if sm.Pdu().RequestId() != pdu.RequestId() {
 			return nil, &MessageError{
 				Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
@@ -216,7 +221,7 @@ func (mp *messageProcessingV3) PrepareDataElements(
 			}
 		}
 	case Report:
-		if sm.Reportable() {
+		if sm != nil && sm.Reportable() {
 			break
 		}
 		fallthrough
