@@ -603,8 +603,19 @@ func newSecurityFromEntry(entry *SecurityEntry) security {
 			Community: []byte(entry.Community),
 		}
 	case V3:
-		// TODO
-		fallthrough
+		sec := &usm{
+			UserName:     []byte(entry.UserName),
+			AuthPassword: entry.AuthPassword,
+			AuthProtocol: entry.AuthProtocol,
+			PrivPassword: entry.PrivPassword,
+			PrivProtocol: entry.PrivProtocol,
+		}
+		if len(entry.SecurityEngineId) > 0 {
+			authEngineId, _ := engineIdToBytes(entry.SecurityEngineId)
+			sec.SetAuthEngineId(authEngineId)
+			sec.DiscoveryStatus = remoteReference
+		}
+		return sec
 	default:
 		return nil
 	}

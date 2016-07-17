@@ -48,7 +48,43 @@ func (t *TrapSender) SendV2TrapWithBindings(trap bool, community string, v snmpg
 		t.t.Fatal(err)
 		return
 	}
+}
 
+func (t *TrapSender) SendV3TrapWithBindings(v snmpgo.VarBinds) {
+	snmp, err := snmpgo.NewSNMP(snmpgo.SNMPArguments{
+		Version:          snmpgo.V3,
+		Address:          t.Address,
+		Network:          "udp4",
+		Retries:          1,
+		UserName:         "MyName",
+		SecurityLevel:    snmpgo.AuthPriv,
+		AuthPassword:     "aaaaaaaa",
+		AuthProtocol:     snmpgo.Sha,
+		PrivPassword:     "bbbbbbbb",
+		PrivProtocol:     snmpgo.Aes,
+		SecurityEngineId: "8000000004736e6d70676f",
+	})
+
+	if err != nil {
+		// Failed to create SNMP object
+		t.t.Fatal(err)
+		return
+	}
+
+	if err = snmp.Open(); err != nil {
+		// Failed to open connection
+		t.t.Fatal(err)
+		return
+	}
+
+	defer snmp.Close()
+
+	err = snmp.V2Trap(v)
+	if err != nil {
+		// Failed to request
+		t.t.Fatal(err)
+		return
+	}
 }
 
 // NewTrapServer creates a new Trap Server & Serve
@@ -59,6 +95,16 @@ func NewTrapServer(address string, listener snmpgo.TrapListener) *snmpgo.TrapSer
 	s.AddSecurity(&snmpgo.SecurityEntry{
 		Version:   snmpgo.V2c,
 		Community: "public",
+	})
+	s.AddSecurity(&snmpgo.SecurityEntry{
+		Version:          snmpgo.V3,
+		UserName:         "MyName",
+		SecurityLevel:    snmpgo.AuthPriv,
+		AuthPassword:     "aaaaaaaa",
+		AuthProtocol:     snmpgo.Sha,
+		PrivPassword:     "bbbbbbbb",
+		PrivProtocol:     snmpgo.Aes,
+		SecurityEngineId: "8000000004736e6d70676f",
 	})
 
 	ch := make(chan struct{}, 0)

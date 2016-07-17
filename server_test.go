@@ -45,6 +45,9 @@ func TestSendV2TrapAndReceiveIt(t *testing.T) {
 	if trap == nil {
 		t.Fatalf("trap is not received")
 	}
+	if trap.Error != nil {
+		t.Fatalf("trap has error: %v", trap.Error)
+	}
 
 	pdu := trap.Pdu
 	if pdu.PduType() != snmpgo.SNMPTrapV2 {
@@ -142,5 +145,35 @@ func TestSendBrokenPacket(t *testing.T) {
 	}
 	if trap.Error == nil {
 		t.Fatalf("packet is not broken")
+	}
+}
+
+func TestSendV3TrapAndReceiveIt(t *testing.T) {
+	trapQueue := &receiveQueue{make(chan *snmpgo.TrapRequest)}
+	s := snmptest.NewTrapServer("localhost:0", trapQueue)
+	defer s.Close()
+
+	var varBinds snmpgo.VarBinds
+	oid, _ := snmpgo.NewOid("1.3.6.1.6.3.1.1.5.3")
+	varBinds = append(varBinds, snmpgo.NewVarBind(snmpgo.OidSnmpTrap, oid))
+
+	trapSender := snmptest.NewTrapSender(t, snmpgo.ListeningUDPAddress(s))
+	trapSender.SendV3TrapWithBindings(varBinds)
+
+	trap := trapQueue.takeNextTrap()
+	if trap == nil {
+		t.Fatalf("trap is not received")
+	}
+	if trap.Error != nil {
+		t.Fatalf("trap has error: %v", trap.Error)
+	}
+
+	pdu := trap.Pdu
+	if pdu.PduType() != snmpgo.SNMPTrapV2 {
+		t.Fatalf("expected trapv2, got: %s", pdu.PduType())
+	}
+
+	if !reflect.DeepEqual(pdu.VarBinds(), varBinds) {
+		t.Fatalf("expected pdu bindings %v, got %v", varBinds, pdu.VarBinds())
 	}
 }

@@ -59,15 +59,69 @@ func (a *ServerArguments) String() string {
 
 // SecurityEntry is used for authentication of the received SNMP message
 type SecurityEntry struct {
-	Version   SNMPVersion // SNMP version to use (V2c only)
-	Community string      // Community
+	Version          SNMPVersion   // SNMP version to use (V2c or V3)
+	Community        string        // Community (V2c specific)
+	UserName         string        // Security name (V3 specific)
+	SecurityLevel    SecurityLevel // Security level (V3 specific)
+	AuthPassword     string        // Authentication protocol pass phrase (V3 specific)
+	AuthProtocol     AuthProtocol  // Authentication protocol (V3 specific)
+	PrivPassword     string        // Privacy protocol pass phrase (V3 specific)
+	PrivProtocol     PrivProtocol  // Privacy protocol (V3 specific)
+	SecurityEngineId string        // Security engine ID (V3 Trap specific)
 }
 
 func (a *SecurityEntry) validate() error {
-	if a.Version != V2c {
+	if v := a.Version; v != V2c && v != V3 {
 		return &ArgumentError{
 			Value:   a.Version,
 			Message: "Unsupported SNMP Version",
+		}
+	}
+	// TODO Refactor(this copied from `SNMPArguments.validate()`)
+	if a.Version == V3 {
+		// RFC3414 Section 5
+		if l := len(a.UserName); l < 1 || l > 32 {
+			return &ArgumentError{
+				Value:   a.UserName,
+				Message: "UserName length is range 1..32",
+			}
+		}
+		if a.SecurityLevel > NoAuthNoPriv {
+			// RFC3414 Section 11.2
+			if len(a.AuthPassword) < 8 {
+				return &ArgumentError{
+					Value:   a.AuthPassword,
+					Message: "AuthPassword is at least 8 characters in length",
+				}
+			}
+			if p := a.AuthProtocol; p != Md5 && p != Sha {
+				return &ArgumentError{
+					Value:   a.AuthProtocol,
+					Message: "Illegal AuthProtocol",
+				}
+			}
+		}
+		if a.SecurityLevel > AuthNoPriv {
+			// RFC3414 Section 11.2
+			if len(a.PrivPassword) < 8 {
+				return &ArgumentError{
+					Value:   a.PrivPassword,
+					Message: "PrivPassword is at least 8 characters in length",
+				}
+			}
+			if p := a.PrivProtocol; p != Des && p != Aes {
+				return &ArgumentError{
+					Value:   a.PrivProtocol,
+					Message: "Illegal PrivProtocol",
+				}
+			}
+		}
+		if a.SecurityEngineId != "" {
+			a.SecurityEngineId = stripHexPrefix(a.SecurityEngineId)
+			_, err := engineIdToBytes(a.SecurityEngineId)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -102,8 +156,8 @@ type TrapRequest struct {
 // trap messages.
 type TrapServer struct {
 	args      *ServerArguments
-	mp        messageProcessing
-	secs      *securityMap
+	mps       map[SNMPVersion]messageProcessing
+	secs      map[SNMPVersion]*securityMap
 	transport transport
 	serving   bool
 
@@ -115,12 +169,15 @@ func (s *TrapServer) AddSecurity(entry *SecurityEntry) error {
 	if err := entry.validate(); err != nil {
 		return err
 	}
-	s.secs.Set(newSecurityFromEntry(entry))
+	s.secs[entry.Version].Set(newSecurityFromEntry(entry))
 	return nil
 }
 
 func (s *TrapServer) DeleteSecurity(entry *SecurityEntry) {
-	s.secs.Delete(newSecurityFromEntry(entry))
+	if entry.validate() != nil {
+		return
+	}
+	s.secs[entry.Version].Delete(newSecurityFromEntry(entry))
 }
 
 // Serve starts the SNMP trap receiver.
@@ -184,11 +241,14 @@ func (s *TrapServer) handle(listener TrapListener, conn interface{}, msg message
 	}()
 
 	var pdu Pdu
+	var mp messageProcessing
 	var sec security
 	if msg != nil {
-		if v := msg.Version(); v == V2c {
-			if sec = s.secs.Lookup(msg); sec != nil {
-				pdu, err = s.mp.PrepareDataElements(sec, msg, nil)
+		var ok bool
+		v := msg.Version()
+		if mp, ok = s.mps[v]; ok {
+			if sec = s.secs[v].Lookup(msg); sec != nil {
+				pdu, err = mp.PrepareDataElements(sec, msg, nil)
 			} else {
 				err = &MessageError{
 					Message: "Authentication failure",
@@ -218,15 +278,17 @@ func (s *TrapServer) handle(listener TrapListener, conn interface{}, msg message
 	listener.OnTRAP(&TrapRequest{Pdu: pdu, Source: src, Error: err})
 
 	if pdu != nil && pdu.PduType() == InformRequest {
-		if err = s.informResponse(conn, src, sec, msg); err != nil && s.serving {
+		if err = s.informResponse(conn, src, mp, sec, msg); err != nil && s.serving {
 			s.logf("trap: failed to send response %v: %v", src, err)
 		}
 	}
 }
 
-func (s *TrapServer) informResponse(conn interface{}, src net.Addr, sec security, msg message) error {
+func (s *TrapServer) informResponse(
+	conn interface{}, src net.Addr, mp messageProcessing, sec security, msg message) error {
+
 	respPdu := NewPduWithVarBinds(msg.Version(), GetResponse, msg.Pdu().VarBinds())
-	respMsg, err := s.mp.PrepareResponseMessage(sec, respPdu, msg)
+	respMsg, err := mp.PrepareResponseMessage(sec, respPdu, msg)
 	if err != nil {
 		return err
 	}
@@ -253,9 +315,15 @@ func NewTrapServer(args ServerArguments) (*TrapServer, error) {
 	args.setDefault()
 
 	return &TrapServer{
-		args:      &args,
-		mp:        newMessageProcessing(V2c),
-		secs:      newSecurityMap(),
+		args: &args,
+		mps: map[SNMPVersion]messageProcessing{
+			V2c: newMessageProcessing(V2c),
+			V3:  newMessageProcessing(V3),
+		},
+		secs: map[SNMPVersion]*securityMap{
+			V2c: newSecurityMap(),
+			V3:  newSecurityMap(),
+		},
 		transport: newTransport(&args),
 	}, nil
 }
