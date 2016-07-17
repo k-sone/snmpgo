@@ -157,21 +157,24 @@ func (mp *messageProcessingV3) PrepareResponseMessage(
 func (mp *messageProcessingV3) PrepareDataElements(
 	sec security, recvMsg, sendMsg message) (Pdu, error) {
 
-	// TODO support for receive message of v3
 	sm, _ := sendMsg.(*messageV3)
 	rm := recvMsg.(*messageV3)
-	if sm.Version() != rm.Version() {
-		return nil, &MessageError{
-			Message: fmt.Sprintf(
-				"SNMPVersion mismatch - expected [%v], actual [%v]", sm.Version(), rm.Version()),
-			Detail: fmt.Sprintf("%s vs %s", sm, rm),
+	if sm != nil {
+		if sm.Version() != rm.Version() {
+			return nil, &MessageError{
+				Message: fmt.Sprintf(
+					"SNMPVersion mismatch - expected [%v], actual [%v]",
+					sm.Version(), rm.Version()),
+				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+			}
 		}
-	}
-	if sm.MessageId != rm.MessageId {
-		return nil, &MessageError{
-			Message: fmt.Sprintf(
-				"MessageId mismatch - expected [%d], actual [%d]", sm.MessageId, rm.MessageId),
-			Detail: fmt.Sprintf("%s vs %s", sm, rm),
+		if sm.MessageId != rm.MessageId {
+			return nil, &MessageError{
+				Message: fmt.Sprintf(
+					"MessageId mismatch - expected [%d], actual [%d]",
+					sm.MessageId, rm.MessageId),
+				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+			}
 		}
 	}
 	if rm.SecurityModel != securityUsm {
@@ -185,44 +188,53 @@ func (mp *messageProcessingV3) PrepareDataElements(
 	}
 
 	pdu, _ := recvMsg.Pdu().(*ScopedPdu)
-	switch t := pdu.PduType(); t {
-	case GetResponse:
-		if sm.Pdu().RequestId() != pdu.RequestId() {
-			return nil, &MessageError{
-				Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
-					sm.Pdu().RequestId(), pdu.RequestId()),
-				Detail: fmt.Sprintf("%s vs %s", sm, rm),
+	if sm != nil {
+		switch t := pdu.PduType(); t {
+		case GetResponse:
+			if sm.Pdu().RequestId() != pdu.RequestId() {
+				return nil, &MessageError{
+					Message: fmt.Sprintf("RequestId mismatch - expected [%d], actual [%d]",
+						sm.Pdu().RequestId(), pdu.RequestId()),
+					Detail: fmt.Sprintf("%s vs %s", sm, rm),
+				}
 			}
-		}
 
-		sPdu := sm.Pdu().(*ScopedPdu)
-		if !bytes.Equal(sPdu.ContextEngineId, pdu.ContextEngineId) {
-			return nil, &MessageError{
-				Message: fmt.Sprintf("ContextEngineId mismatch - expected [%s], actual [%s]",
-					toHexStr(sPdu.ContextEngineId, ""), toHexStr(pdu.ContextEngineId, "")),
+			sPdu := sm.Pdu().(*ScopedPdu)
+			if !bytes.Equal(sPdu.ContextEngineId, pdu.ContextEngineId) {
+				return nil, &MessageError{
+					Message: fmt.Sprintf("ContextEngineId mismatch - expected [%s], actual [%s]",
+						toHexStr(sPdu.ContextEngineId, ""), toHexStr(pdu.ContextEngineId, "")),
+				}
 			}
-		}
 
-		if !bytes.Equal(sPdu.ContextName, pdu.ContextName) {
-			return nil, &MessageError{
-				Message: fmt.Sprintf("ContextName mismatch - expected [%s], actual [%s]",
-					toHexStr(sPdu.ContextName, ""), toHexStr(pdu.ContextName, "")),
+			if !bytes.Equal(sPdu.ContextName, pdu.ContextName) {
+				return nil, &MessageError{
+					Message: fmt.Sprintf("ContextName mismatch - expected [%s], actual [%s]",
+						toHexStr(sPdu.ContextName, ""), toHexStr(pdu.ContextName, "")),
+				}
 			}
-		}
 
-		if sm.Authentication() && !rm.Authentication() {
+			if sm.Authentication() && !rm.Authentication() {
+				return nil, &MessageError{
+					Message: "Response message is not authenticated",
+				}
+			}
+		case Report:
+			if sm.Reportable() {
+				break
+			}
+			fallthrough
+		default:
 			return nil, &MessageError{
-				Message: "Response message is not authenticated",
+				Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]",
+					GetResponse, t),
 			}
 		}
-	case Report:
-		if sm.Reportable() {
-			break
-		}
-		fallthrough
-	default:
-		return nil, &MessageError{
-			Message: fmt.Sprintf("Illegal PduType - expected [%s], actual [%v]", GetResponse, t),
+	} else {
+		if t := pdu.PduType(); !confirmedType(t) && t != SNMPTrapV2 {
+			return nil, &MessageError{
+				Message: fmt.Sprintf("Illegal PduType - received [%v]", t),
+			}
 		}
 	}
 

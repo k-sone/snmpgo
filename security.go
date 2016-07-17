@@ -85,9 +85,13 @@ func (c *community) String() string {
 type discoveryStatus int
 
 const (
+	// for client side
 	noDiscovered discoveryStatus = iota
 	noSynchronized
 	discovered
+
+	// for server side
+	remoteReference
 )
 
 func (d discoveryStatus) String() string {
@@ -98,6 +102,8 @@ func (d discoveryStatus) String() string {
 		return "noSynchronized"
 	case discovered:
 		return "discovered"
+	case remoteReference:
+		return "remoteReference"
 	default:
 		return "Unknown"
 	}
@@ -241,6 +247,13 @@ func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 
 	// update boots & time
 	switch u.DiscoveryStatus {
+	case remoteReference:
+		if rm.Authentication() {
+			if err = u.CheckTimeliness(rm.AuthEngineBoots, rm.AuthEngineTime); err != nil {
+				return
+			}
+			u.SynchronizeEngineBootsTime(rm.AuthEngineBoots, rm.AuthEngineTime)
+		}
 	case discovered:
 		if rm.Authentication() {
 			err = u.CheckTimeliness(rm.AuthEngineBoots, rm.AuthEngineTime)
