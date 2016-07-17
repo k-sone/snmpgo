@@ -345,7 +345,7 @@ func (u *usm) CheckTimeliness(engineBoots, engineTime int64) error {
 	// RFC3414 Section 3.2 7) b)
 	if engineBoots == math.MaxInt32 ||
 		engineBoots < u.AuthEngineBoots ||
-		(engineBoots == u.AuthEngineBoots && engineTime-u.AuthEngineTime > 150) {
+		(engineBoots == u.AuthEngineBoots && u.AuthEngineTime-engineTime > 150) {
 		return &MessageError{
 			Message: fmt.Sprintf(
 				"The message is not in the time window - local [%d/%d], remote [%d/%d]",

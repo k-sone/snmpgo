@@ -301,12 +301,18 @@ func TestUsmTimeliness(t *testing.T) {
 	}
 
 	sec.AuthEngineBoots = 0
-	err = sec.CheckTimeliness(0, 151)
+	sec.AuthEngineTime = 1150
+	err = sec.CheckTimeliness(0, 999)
 	if err == nil {
 		t.Error("Timeliness() - lose authEngineTime")
 	}
 
-	err = sec.CheckTimeliness(0, 150)
+	err = sec.CheckTimeliness(0, 1000)
+	if err != nil {
+		t.Errorf("Timeliness() - has error %v", err)
+	}
+
+	err = sec.CheckTimeliness(0, 2000)
 	if err != nil {
 		t.Errorf("Timeliness() - has error %v", err)
 	}
