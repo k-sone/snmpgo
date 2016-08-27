@@ -1,3 +1,11 @@
+## 3.0.0 (2016/08/27)
+
+- Correction to allow 32 bits compilation [#8](https://github.com/k-sone/snmpgo/pull/8)
+- Support for receiving of trap events (V3) [#10](https://github.com/k-sone/snmpgo/pull/10)
+
+#### Breaking Changes
+- Change to return an error from `TrapServer.DeleteSecurity`
+
 ## 2.0.1 (2016/05/26)
 
 - Raise an error when unmarshalling an invalid SNMP version
