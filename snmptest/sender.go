@@ -50,7 +50,7 @@ func (t *TrapSender) SendV2TrapWithBindings(trap bool, community string, v snmpg
 	}
 }
 
-func (t *TrapSender) SendV3TrapWithBindings(l snmpgo.SecurityLevel, v snmpgo.VarBinds) {
+func (t *TrapSender) SendV3TrapWithBindings(l snmpgo.SecurityLevel, v snmpgo.VarBinds, eBoots, eTime int) {
 	snmp, err := snmpgo.NewSNMP(snmpgo.SNMPArguments{
 		Version:          snmpgo.V3,
 		Address:          t.Address,
@@ -79,7 +79,7 @@ func (t *TrapSender) SendV3TrapWithBindings(l snmpgo.SecurityLevel, v snmpgo.Var
 
 	defer snmp.Close()
 
-	err = snmp.V2Trap(v)
+	err = snmp.V2TrapWithBootsTime(v, eBoots, eTime)
 	if err != nil {
 		// Failed to request
 		t.t.Fatal(err)

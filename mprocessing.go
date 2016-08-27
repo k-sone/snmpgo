@@ -140,6 +140,10 @@ func (mp *messageProcessingV3) PrepareOutgoingMessage(
 			m.SetPrivacy(true)
 		}
 	}
+	// set boots & time from arguments
+	// (there is possibility to be overwritten with the usm)
+	m.AuthEngineBoots = int64(args.authEngineBoots)
+	m.AuthEngineTime = int64(args.authEngineTime)
 
 	if err := sec.GenerateRequestMessage(msg); err != nil {
 		return nil, err

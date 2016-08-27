@@ -16,6 +16,8 @@ import (
 
 var hexPrefix *regexp.Regexp = regexp.MustCompile(`^0[xX]`)
 var inform bool
+var engineBoots int
+var engineTime int
 var errMessage string
 
 func usage(msg string, code int) {
@@ -55,6 +57,7 @@ func parseArgs() (*snmpgo.SNMPArguments, []string) {
 	secengine := flag.String("e", "", "Security engine ID")
 	contextengine := flag.String("E", "", "Context engine ID")
 	contextname := flag.String("n", "", "Context name")
+	bootsTime := flag.String("Z", "", "EngineBoots and EngineTime (boots,time)")
 	flag.BoolVar(&inform, "Ci", false, "Send an Inform")
 
 	flag.Parse()
@@ -95,7 +98,26 @@ func parseArgs() (*snmpgo.SNMPArguments, []string) {
 		usage(fmt.Sprintf("Illegal SecurityLevel, value `%s`", *seclevel), 2)
 	}
 
+	if *bootsTime != "" {
+		var success bool
+		if engineBoots, engineTime, success = parseBootsTime(*bootsTime); !success {
+			usage(fmt.Sprintf("Invalid Boots,Time format, value `%s`", *bootsTime), 2)
+		}
+	}
+
 	return args, flag.Args()
+}
+
+func parseBootsTime(bt string) (int, int, bool) {
+	s := strings.Split(bt, ",")
+	if len(s) == 2 {
+		b, e1 := strconv.Atoi(s[0])
+		t, e2 := strconv.Atoi(s[1])
+		if e1 == nil && e2 == nil {
+			return b, t, true
+		}
+	}
+	return 0, 0, false
 }
 
 func getUptime(s string) uint32 {
@@ -232,7 +254,7 @@ func main() {
 	if inform {
 		err = snmp.InformRequest(varBinds)
 	} else {
-		err = snmp.V2Trap(varBinds)
+		err = snmp.V2TrapWithBootsTime(varBinds, engineBoots, engineTime)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
