@@ -57,9 +57,9 @@ func TestMessageProcessingV1Receive(t *testing.T) {
 		Version:   snmpgo.V2c,
 		Community: "public",
 	}
-
 	mp := snmpgo.NewMessageProcessing(args.Version)
 	sec := snmpgo.NewSecurity(args)
+
 	pdu := snmpgo.NewPdu(snmpgo.V2c, snmpgo.GetResponse)
 	pduBytes, _ := pdu.Marshal()
 	rmsg := snmpgo.ToMessageV1(snmpgo.NewMessageWithPdu(snmpgo.V2c, pdu))
@@ -94,7 +94,7 @@ func TestMessageProcessingV1Receive(t *testing.T) {
 	}
 }
 
-func TestMessageProcessingV3(t *testing.T) {
+func TestMessageProcessingV3Request(t *testing.T) {
 	expEngId := []byte{0x80, 0x00, 0x00, 0x00, 0x01}
 	expCtxId := []byte{0x80, 0x00, 0x00, 0x00, 0x05}
 	expCtxName := "myName"
@@ -205,6 +205,44 @@ func TestMessageProcessingV3(t *testing.T) {
 
 	msgv3.SetAuthentication(false)
 	_, err = mp.PrepareDataElements(sec, rmsg, msg)
+	if err != nil {
+		t.Errorf("PrepareDataElements() - has error %v", err)
+	}
+}
+
+func TestMessageProcessingV3Receive(t *testing.T) {
+	secEngId := []byte{0x80, 0x00, 0x00, 0x00, 0x01}
+	args := &snmpgo.SNMPArguments{
+		Version:          snmpgo.V3,
+		UserName:         "myName",
+		SecurityEngineId: hex.EncodeToString(secEngId),
+	}
+	mp := snmpgo.NewMessageProcessing(args.Version)
+	sec := snmpgo.NewSecurity(args)
+	usm := snmpgo.ToUsm(sec)
+	usm.SetAuthEngineId(secEngId)
+	usm.DiscoveryStatus = 3 // remoteReference
+
+	pdu := snmpgo.NewPdu(snmpgo.V3, snmpgo.GetResponse)
+	pduBytes, _ := pdu.Marshal()
+	rmsg := snmpgo.ToMessageV3(snmpgo.NewMessageWithPdu(snmpgo.V3, pdu))
+	rmsg.AuthEngineId = secEngId
+	rmsg.UserName = []byte("myName")
+	rmsg.SecurityModel = 3 // securityUsm
+	rmsg.SetPduBytes(pduBytes)
+	_, err := mp.PrepareDataElements(sec, rmsg, nil)
+	if err == nil {
+		t.Error("PrepareDataElements() - pdu type check")
+	}
+
+	pdu = snmpgo.NewPdu(snmpgo.V3, snmpgo.SNMPTrapV2)
+	pduBytes, _ = pdu.Marshal()
+	rmsg = snmpgo.ToMessageV3(snmpgo.NewMessageWithPdu(snmpgo.V3, pdu))
+	rmsg.AuthEngineId = secEngId
+	rmsg.UserName = []byte("myName")
+	rmsg.SecurityModel = 3 // securityUsm
+	rmsg.SetPduBytes(pduBytes)
+	_, err = mp.PrepareDataElements(sec, rmsg, nil)
 	if err != nil {
 		t.Errorf("PrepareDataElements() - has error %v", err)
 	}

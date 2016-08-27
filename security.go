@@ -85,9 +85,13 @@ func (c *community) String() string {
 type discoveryStatus int
 
 const (
+	// for client side
 	noDiscovered discoveryStatus = iota
 	noSynchronized
 	discovered
+
+	// for server side
+	remoteReference
 )
 
 func (d discoveryStatus) String() string {
@@ -98,6 +102,8 @@ func (d discoveryStatus) String() string {
 		return "noSynchronized"
 	case discovered:
 		return "discovered"
+	case remoteReference:
+		return "remoteReference"
 	default:
 		return "Unknown"
 	}
@@ -119,7 +125,11 @@ type usm struct {
 }
 
 func (u *usm) Identifier() string {
-	return string(u.AuthEngineId) + ":" + string(u.UserName)
+	id := string(u.AuthEngineId) + ":" + string(u.UserName)
+	if len(u.AuthPassword) >= 0 {
+		id += ":auth"
+	}
+	return id
 }
 
 func (u *usm) GenerateRequestMessage(sendMsg message) (err error) {
@@ -241,6 +251,13 @@ func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 
 	// update boots & time
 	switch u.DiscoveryStatus {
+	case remoteReference:
+		if rm.Authentication() {
+			if err = u.CheckTimeliness(rm.AuthEngineBoots, rm.AuthEngineTime); err != nil {
+				return
+			}
+			u.SynchronizeEngineBootsTime(rm.AuthEngineBoots, rm.AuthEngineTime)
+		}
 	case discovered:
 		if rm.Authentication() {
 			err = u.CheckTimeliness(rm.AuthEngineBoots, rm.AuthEngineTime)
@@ -345,7 +362,7 @@ func (u *usm) CheckTimeliness(engineBoots, engineTime int64) error {
 	// RFC3414 Section 3.2 7) b)
 	if engineBoots == math.MaxInt32 ||
 		engineBoots < u.AuthEngineBoots ||
-		(engineBoots == u.AuthEngineBoots && engineTime-u.AuthEngineTime > 150) {
+		(engineBoots == u.AuthEngineBoots && u.AuthEngineTime-engineTime > 150) {
 		return &MessageError{
 			Message: fmt.Sprintf(
 				"The message is not in the time window - local [%d/%d], remote [%d/%d]",
@@ -565,22 +582,29 @@ func passwordToKey(proto AuthProtocol, password string, engineId []byte) []byte 
 	return h.Sum(nil)
 }
 
-func newSecurity(args *SNMPArguments) (sec security) {
+func newSecurity(args *SNMPArguments) security {
 	switch args.Version {
 	case V1, V2c:
-		sec = &community{
+		return &community{
 			Community: []byte(args.Community),
 		}
 	case V3:
-		sec = &usm{
-			UserName:     []byte(args.UserName),
-			AuthPassword: args.AuthPassword,
-			AuthProtocol: args.AuthProtocol,
-			PrivPassword: args.PrivPassword,
-			PrivProtocol: args.PrivProtocol,
+		sec := &usm{
+			UserName: []byte(args.UserName),
 		}
+		switch args.SecurityLevel {
+		case AuthPriv:
+			sec.PrivPassword = args.PrivPassword
+			sec.PrivProtocol = args.PrivProtocol
+			fallthrough
+		case AuthNoPriv:
+			sec.AuthPassword = args.AuthPassword
+			sec.AuthProtocol = args.AuthProtocol
+		}
+		return sec
+	default:
+		return nil
 	}
-	return sec
 }
 
 func newSecurityFromEntry(entry *SecurityEntry) security {
@@ -590,8 +614,24 @@ func newSecurityFromEntry(entry *SecurityEntry) security {
 			Community: []byte(entry.Community),
 		}
 	case V3:
-		// TODO
-		fallthrough
+		sec := &usm{
+			UserName: []byte(entry.UserName),
+		}
+		switch entry.SecurityLevel {
+		case AuthPriv:
+			sec.PrivPassword = entry.PrivPassword
+			sec.PrivProtocol = entry.PrivProtocol
+			fallthrough
+		case AuthNoPriv:
+			sec.AuthPassword = entry.AuthPassword
+			sec.AuthProtocol = entry.AuthProtocol
+		}
+		if len(entry.SecurityEngineId) > 0 {
+			authEngineId, _ := engineIdToBytes(entry.SecurityEngineId)
+			sec.SetAuthEngineId(authEngineId)
+			sec.DiscoveryStatus = remoteReference
+		}
+		return sec
 	default:
 		return nil
 	}
@@ -615,6 +655,9 @@ func (m *securityMap) Lookup(msg message) security {
 		id = string(mm.Community)
 	case *messageV3:
 		id = string(mm.AuthEngineId) + ":" + string(mm.UserName)
+		if mm.Authentication() {
+			id += ":auth"
+		}
 	}
 
 	m.lock.RLock()

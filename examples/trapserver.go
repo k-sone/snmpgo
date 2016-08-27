@@ -32,9 +32,24 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// V2c
 	err = server.AddSecurity(&snmpgo.SecurityEntry{
 		Version:   snmpgo.V2c,
 		Community: "public",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	// V3
+	err = server.AddSecurity(&snmpgo.SecurityEntry{
+		Version:          snmpgo.V3,
+		UserName:         "MyName",
+		SecurityLevel:    snmpgo.AuthPriv,
+		AuthPassword:     "aaaaaaaa",
+		AuthProtocol:     snmpgo.Sha,
+		PrivPassword:     "bbbbbbbb",
+		PrivProtocol:     snmpgo.Aes,
+		SecurityEngineId: "8000000004736e6d70676f",
 	})
 	if err != nil {
 		log.Fatal(err)

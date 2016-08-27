@@ -25,6 +25,9 @@ type SNMPArguments struct {
 	SecurityEngineId string        // Security engine ID (V3 specific)
 	ContextEngineId  string        // Context engine ID (V3 specific)
 	ContextName      string        // Context name (V3 specific)
+
+	authEngineBoots int
+	authEngineTime  int
 }
 
 func (a *SNMPArguments) setDefault() {
@@ -264,6 +267,30 @@ func (s *SNMP) GetBulkWalk(oids Oids, nonRepeaters, maxRepetitions int) (result 
 }
 
 func (s *SNMP) V2Trap(varBinds VarBinds) error {
+	return s.v2trap(SNMPTrapV2, varBinds)
+}
+
+// Send trap with the authoritative engine boots and time when used with SNMP V3.
+func (s *SNMP) V2TrapWithBootsTime(varBinds VarBinds, eBoots, eTime int) error {
+	if eBoots < 0 || eBoots > math.MaxInt32 {
+		return &ArgumentError{
+			Value:   eBoots,
+			Message: fmt.Sprintf("EngineBoots is range %d..%d", 0, math.MaxInt32),
+		}
+	}
+	if eTime < 0 || eTime > math.MaxInt32 {
+		return &ArgumentError{
+			Value:   eTime,
+			Message: fmt.Sprintf("EngineTime is range %d..%d", 0, math.MaxInt32),
+		}
+	}
+
+	defer func() {
+		s.args.authEngineBoots = 0
+		s.args.authEngineTime = 0
+	}()
+	s.args.authEngineBoots = eBoots
+	s.args.authEngineTime = eTime
 	return s.v2trap(SNMPTrapV2, varBinds)
 }
 

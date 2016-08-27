@@ -20,10 +20,14 @@ func TestSNMPArguments(t *testing.T) {
 		t.Error("validate() - message size(min)")
 	}
 
-	args = &snmpgo.SNMPArguments{MessageMaxSize: math.MaxInt32 + 1}
-	err = snmpgo.ArgsValidate(args)
-	if err == nil {
-		t.Error("validate() - message size(max)")
+	// skip on 32 bit arch
+	if (^uint(0) >> 63) > 0 {
+		s := int64(math.MaxInt32) + 1
+		args = &snmpgo.SNMPArguments{MessageMaxSize: int(s)}
+		err = snmpgo.ArgsValidate(args)
+		if err == nil {
+			t.Error("validate() - message size(max)")
+		}
 	}
 
 	args = &snmpgo.SNMPArguments{Version: snmpgo.V3}
