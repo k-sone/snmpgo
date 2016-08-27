@@ -173,11 +173,12 @@ func (s *TrapServer) AddSecurity(entry *SecurityEntry) error {
 	return nil
 }
 
-func (s *TrapServer) DeleteSecurity(entry *SecurityEntry) {
-	if entry.validate() != nil {
-		return
+func (s *TrapServer) DeleteSecurity(entry *SecurityEntry) error {
+	if err := entry.validate(); err != nil {
+		return err
 	}
 	s.secs[entry.Version].Delete(newSecurityFromEntry(entry))
+	return nil
 }
 
 // Serve starts the SNMP trap receiver.
