@@ -1,10 +1,12 @@
 snmpgo
 ======
 
-snmpgo is a golang implementation for sending SNMP messages.
+snmpgo is a golang implementation for SNMP.
 
 Supported Message Types
 -----------------------
+
+### Sending
 
 * SNMP V1
     - GetRequest
@@ -15,6 +17,14 @@ Supported Message Types
     - GetBulkRequest
     - V2Trap
     - InformRequest
+
+### Receiving
+
+* SNMP V2c
+    - V2Trap
+    - InformRequest
+* SNMP V3
+    - V2Trap
 
 Examples
 --------
