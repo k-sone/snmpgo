@@ -125,7 +125,11 @@ type usm struct {
 }
 
 func (u *usm) Identifier() string {
-	return string(u.AuthEngineId) + ":" + string(u.UserName)
+	id := string(u.AuthEngineId) + ":" + string(u.UserName)
+	if len(u.AuthPassword) >= 0 {
+		id += ":auth"
+	}
+	return id
 }
 
 func (u *usm) GenerateRequestMessage(sendMsg message) (err error) {
@@ -578,22 +582,29 @@ func passwordToKey(proto AuthProtocol, password string, engineId []byte) []byte 
 	return h.Sum(nil)
 }
 
-func newSecurity(args *SNMPArguments) (sec security) {
+func newSecurity(args *SNMPArguments) security {
 	switch args.Version {
 	case V1, V2c:
-		sec = &community{
+		return &community{
 			Community: []byte(args.Community),
 		}
 	case V3:
-		sec = &usm{
-			UserName:     []byte(args.UserName),
-			AuthPassword: args.AuthPassword,
-			AuthProtocol: args.AuthProtocol,
-			PrivPassword: args.PrivPassword,
-			PrivProtocol: args.PrivProtocol,
+		sec := &usm{
+			UserName: []byte(args.UserName),
 		}
+		switch args.SecurityLevel {
+		case AuthPriv:
+			sec.PrivPassword = args.PrivPassword
+			sec.PrivProtocol = args.PrivProtocol
+			fallthrough
+		case AuthNoPriv:
+			sec.AuthPassword = args.AuthPassword
+			sec.AuthProtocol = args.AuthProtocol
+		}
+		return sec
+	default:
+		return nil
 	}
-	return sec
 }
 
 func newSecurityFromEntry(entry *SecurityEntry) security {
@@ -604,11 +615,16 @@ func newSecurityFromEntry(entry *SecurityEntry) security {
 		}
 	case V3:
 		sec := &usm{
-			UserName:     []byte(entry.UserName),
-			AuthPassword: entry.AuthPassword,
-			AuthProtocol: entry.AuthProtocol,
-			PrivPassword: entry.PrivPassword,
-			PrivProtocol: entry.PrivProtocol,
+			UserName: []byte(entry.UserName),
+		}
+		switch entry.SecurityLevel {
+		case AuthPriv:
+			sec.PrivPassword = entry.PrivPassword
+			sec.PrivProtocol = entry.PrivProtocol
+			fallthrough
+		case AuthNoPriv:
+			sec.AuthPassword = entry.AuthPassword
+			sec.AuthProtocol = entry.AuthProtocol
 		}
 		if len(entry.SecurityEngineId) > 0 {
 			authEngineId, _ := engineIdToBytes(entry.SecurityEngineId)
@@ -639,6 +655,9 @@ func (m *securityMap) Lookup(msg message) security {
 		id = string(mm.Community)
 	case *messageV3:
 		id = string(mm.AuthEngineId) + ":" + string(mm.UserName)
+		if mm.Authentication() {
+			id += ":auth"
+		}
 	}
 
 	m.lock.RLock()

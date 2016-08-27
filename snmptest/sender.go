@@ -50,14 +50,14 @@ func (t *TrapSender) SendV2TrapWithBindings(trap bool, community string, v snmpg
 	}
 }
 
-func (t *TrapSender) SendV3TrapWithBindings(v snmpgo.VarBinds) {
+func (t *TrapSender) SendV3TrapWithBindings(l snmpgo.SecurityLevel, v snmpgo.VarBinds) {
 	snmp, err := snmpgo.NewSNMP(snmpgo.SNMPArguments{
 		Version:          snmpgo.V3,
 		Address:          t.Address,
 		Network:          "udp4",
 		Retries:          1,
 		UserName:         "MyName",
-		SecurityLevel:    snmpgo.AuthPriv,
+		SecurityLevel:    l,
 		AuthPassword:     "aaaaaaaa",
 		AuthProtocol:     snmpgo.Sha,
 		PrivPassword:     "bbbbbbbb",
