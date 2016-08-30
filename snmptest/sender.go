@@ -50,7 +50,7 @@ func (t *TrapSender) SendV2TrapWithBindings(trap bool, community string, v snmpg
 	}
 }
 
-func (t *TrapSender) SendV3TrapWithBindings(l snmpgo.SecurityLevel, v snmpgo.VarBinds, eBoots, eTime int) {
+func (t *TrapSender) SendV3TrapWithBindings(v snmpgo.VarBinds, l snmpgo.SecurityLevel, eid string, eBoots, eTime int) {
 	snmp, err := snmpgo.NewSNMP(snmpgo.SNMPArguments{
 		Version:          snmpgo.V3,
 		Address:          t.Address,
@@ -62,7 +62,7 @@ func (t *TrapSender) SendV3TrapWithBindings(l snmpgo.SecurityLevel, v snmpgo.Var
 		AuthProtocol:     snmpgo.Sha,
 		PrivPassword:     "bbbbbbbb",
 		PrivProtocol:     snmpgo.Aes,
-		SecurityEngineId: "8000000004736e6d70676f",
+		SecurityEngineId: eid,
 	})
 
 	if err != nil {
@@ -105,6 +105,12 @@ func NewTrapServer(address string, listener snmpgo.TrapListener) *snmpgo.TrapSer
 		PrivPassword:     "bbbbbbbb",
 		PrivProtocol:     snmpgo.Aes,
 		SecurityEngineId: "8000000004736e6d70676f",
+	})
+	s.AddSecurity(&snmpgo.SecurityEntry{
+		Version:          snmpgo.V3,
+		UserName:         "MyName",
+		SecurityLevel:    snmpgo.NoAuthNoPriv,
+		SecurityEngineId: "8000000004736e6d70676f5f6e6f61757468",
 	})
 
 	ch := make(chan struct{}, 0)

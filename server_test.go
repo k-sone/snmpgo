@@ -158,7 +158,7 @@ func TestSendV3TrapAndReceiveIt(t *testing.T) {
 	varBinds = append(varBinds, snmpgo.NewVarBind(snmpgo.OidSnmpTrap, oid))
 
 	trapSender := snmptest.NewTrapSender(t, snmpgo.ListeningUDPAddress(s))
-	trapSender.SendV3TrapWithBindings(snmpgo.AuthPriv, varBinds, 0, 0)
+	trapSender.SendV3TrapWithBindings(varBinds, snmpgo.AuthPriv, "8000000004736e6d70676f", 0, 0)
 
 	trap := trapQueue.takeNextTrap()
 	if trap == nil {
@@ -176,6 +176,15 @@ func TestSendV3TrapAndReceiveIt(t *testing.T) {
 	if !reflect.DeepEqual(pdu.VarBinds(), varBinds) {
 		t.Fatalf("expected pdu bindings %v, got %v", varBinds, pdu.VarBinds())
 	}
+
+	trapSender.SendV3TrapWithBindings(varBinds, snmpgo.NoAuthNoPriv, "8000000004736e6d70676f5f6e6f61757468", 0, 0)
+	trap = trapQueue.takeNextTrap()
+	if trap == nil {
+		t.Fatalf("trap is not received")
+	}
+	if trap.Error != nil {
+		t.Fatalf("trap has error: %v", trap.Error)
+	}
 }
 
 func TestSendV3MismatchAuthLevel(t *testing.T) {
@@ -188,7 +197,7 @@ func TestSendV3MismatchAuthLevel(t *testing.T) {
 	varBinds = append(varBinds, snmpgo.NewVarBind(snmpgo.OidSnmpTrap, oid))
 
 	trapSender := snmptest.NewTrapSender(t, snmpgo.ListeningUDPAddress(s))
-	trapSender.SendV3TrapWithBindings(snmpgo.NoAuthNoPriv, varBinds, 0, 0)
+	trapSender.SendV3TrapWithBindings(varBinds, snmpgo.NoAuthNoPriv, "8000000004736e6d70676f", 0, 0)
 
 	trap := trapQueue.takeNextTrap()
 	if trap == nil {
@@ -209,7 +218,7 @@ func TestSendV3TimeWindow(t *testing.T) {
 	varBinds = append(varBinds, snmpgo.NewVarBind(snmpgo.OidSnmpTrap, oid))
 
 	trapSender := snmptest.NewTrapSender(t, snmpgo.ListeningUDPAddress(s))
-	trapSender.SendV3TrapWithBindings(snmpgo.AuthPriv, varBinds, 10, 1150)
+	trapSender.SendV3TrapWithBindings(varBinds, snmpgo.AuthPriv, "8000000004736e6d70676f", 10, 1150)
 
 	trap := trapQueue.takeNextTrap()
 	if trap == nil {
@@ -219,7 +228,7 @@ func TestSendV3TimeWindow(t *testing.T) {
 		t.Fatalf("trap has error: %v", trap.Error)
 	}
 
-	trapSender.SendV3TrapWithBindings(snmpgo.AuthPriv, varBinds, 0, 1150)
+	trapSender.SendV3TrapWithBindings(varBinds, snmpgo.AuthPriv, "8000000004736e6d70676f", 0, 1150)
 	trap = trapQueue.takeNextTrap()
 	if trap == nil {
 		t.Fatal("trap is not received")
@@ -228,7 +237,7 @@ func TestSendV3TimeWindow(t *testing.T) {
 		t.Fatal("turn back the engine boots")
 	}
 
-	trapSender.SendV3TrapWithBindings(snmpgo.AuthPriv, varBinds, 10, 999)
+	trapSender.SendV3TrapWithBindings(varBinds, snmpgo.AuthPriv, "8000000004736e6d70676f", 10, 999)
 	trap = trapQueue.takeNextTrap()
 	if trap == nil {
 		t.Fatal("trap is not received")

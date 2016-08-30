@@ -1,3 +1,7 @@
+## 3.0.1 (2016/08/30)
+
+- Fix a bug that denying NoAuth trap, even when server is NoAuth mode
+
 ## 3.0.0 (2016/08/27)
 
 - Correction to allow 32 bits compilation [#8](https://github.com/k-sone/snmpgo/pull/8)

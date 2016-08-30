@@ -126,7 +126,7 @@ type usm struct {
 
 func (u *usm) Identifier() string {
 	id := string(u.AuthEngineId) + ":" + string(u.UserName)
-	if len(u.AuthPassword) >= 0 {
+	if len(u.AuthPassword) > 0 {
 		id += ":auth"
 	}
 	return id
