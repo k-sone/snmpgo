@@ -21,9 +21,13 @@ func initRandom() {
 	random = rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
+var reqMutex sync.Mutex
 func genRequestId() int {
 	randOnce.Do(initRandom)
-	return int(random.Int31())
+	reqMutex.Lock()
+	val := int(random.Int31())
+	reqMutex.Unlock()
+	return val
 }
 
 func genSalt32() int32 {
