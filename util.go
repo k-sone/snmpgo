@@ -22,6 +22,7 @@ func initRandom() {
 }
 
 var reqMutex sync.Mutex
+
 func genRequestId() int {
 	randOnce.Do(initRandom)
 	reqMutex.Lock()
@@ -32,12 +33,18 @@ func genRequestId() int {
 
 func genSalt32() int32 {
 	randOnce.Do(initRandom)
-	return random.Int31()
+	reqMutex.Lock()
+	val := random.Int31()
+	reqMutex.Unlock()
+	return val
 }
 
 func genSalt64() int64 {
 	randOnce.Do(initRandom)
-	return random.Int63()
+	reqMutex.Lock()
+	val := random.Int63()
+	reqMutex.Unlock()
+	return val
 }
 
 var mesId int = math.MaxInt32 - 1
@@ -48,7 +55,9 @@ func genMessageId() (id int) {
 	mesMutex.Lock()
 	mesId++
 	if mesId == math.MaxInt32 {
+		reqMutex.Lock()
 		mesId = int(random.Int31())
+		reqMutex.Unlock()
 	}
 	id = mesId
 	mesMutex.Unlock()

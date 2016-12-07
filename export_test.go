@@ -7,6 +7,10 @@ import (
 var StripHexPrefix = stripHexPrefix
 var ToHexStr = toHexStr
 var Retry = retry
+var GenRequestId = genRequestId
+var GenSalt32 = genSalt32
+var GenSalt64 = genSalt64
+var GenMessageId = genMessageId
 var NewNotInTimeWindowError = func() error { return &notInTimeWindowError{&MessageError{}} }
 
 // For snmpgo testing
