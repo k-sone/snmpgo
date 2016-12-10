@@ -1,3 +1,7 @@
+## 3.0.2 (2016/12/10)
+
+- Fix for data race in generating request ids [#12](https://github.com/k-sone/snmpgo/pull/12)
+
 ## 3.0.1 (2016/08/30)
 
 - Fix a bug that denying NoAuth trap, even when server is NoAuth mode
