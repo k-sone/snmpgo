@@ -23,14 +23,19 @@ type packetTransport struct {
 }
 
 func (t *packetTransport) Listen() (interface{}, error) {
-	if t.conn != nil {
+	t.lock.Lock()
+	c := t.conn
+	t.lock.Unlock()
+	if c != nil {
 		<-t.anchor
 		return nil, nil
 	}
 
-	var err error
-	t.conn, err = net.ListenPacket(t.network, t.localAddr)
-	return t.conn, err
+	c, err := net.ListenPacket(t.network, t.localAddr)
+	t.lock.Lock()
+	t.conn = c
+	t.lock.Unlock()
+	return c, err
 }
 
 func (t *packetTransport) Read(conn interface{}, buf []byte) (num int, src net.Addr, msg message, err error) {

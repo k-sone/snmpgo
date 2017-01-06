@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -159,6 +160,7 @@ type TrapServer struct {
 	mps       map[SNMPVersion]messageProcessing
 	secs      map[SNMPVersion]*securityMap
 	transport transport
+	servingMu sync.RWMutex
 	serving   bool
 
 	// Error Logger which will be used for logging of default errors
@@ -187,7 +189,9 @@ func (s *TrapServer) Serve(listener TrapListener) error {
 	if listener == nil {
 		return &ArgumentError{Message: "listener is nil"}
 	}
+	s.servingMu.Lock()
 	s.serving = true
+	s.servingMu.Unlock()
 	size := s.args.MessageMaxSize
 	if size < recvBufferSize {
 		size = recvBufferSize
@@ -195,7 +199,10 @@ func (s *TrapServer) Serve(listener TrapListener) error {
 
 	for {
 		conn, err := s.transport.Listen()
-		if !s.serving {
+		s.servingMu.RLock()
+		serving := s.serving
+		s.servingMu.RUnlock()
+		if !serving {
 			return nil
 		}
 		if err != nil {
@@ -211,7 +218,10 @@ func (s *TrapServer) Serve(listener TrapListener) error {
 			for {
 				_, src, msg, err := s.transport.Read(conn, buf)
 				if _, ok := err.(net.Error); ok {
-					if s.serving {
+					s.servingMu.RLock()
+					serving := s.serving
+					s.servingMu.RUnlock()
+					if serving {
 						s.logf("trap: failed to read packet: %v", err)
 					}
 					return
@@ -225,7 +235,9 @@ func (s *TrapServer) Serve(listener TrapListener) error {
 
 // Close shuts down the server.
 func (s *TrapServer) Close() error {
+	s.servingMu.Lock()
 	s.serving = false
+	s.servingMu.Unlock()
 	return s.transport.Close(nil)
 }
 
