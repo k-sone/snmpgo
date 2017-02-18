@@ -60,7 +60,12 @@ func (v *OctetString) BigInt() (*big.Int, error) {
 
 func (v *OctetString) String() string {
 	for _, c := range v.Value {
-		if !strconv.IsPrint(rune(c)) {
+		switch {
+		case c >= 0x20 && c <= 0x7e:
+			// printable character including space
+		case c >= 0x09 && c <= 0x0d:
+			// '\t', '\n', '\v', '\f', '\r'
+		default:
 			return toHexStr(v.Value, ":")
 		}
 	}
