@@ -380,6 +380,8 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 		// Bottom 7 bits give the number of length bytes to follow.
 		numBytes := int(b & 0x7f)
 		if numBytes == 0 {
+			// TODO: Fix this for BER as it should be allowed. Not seen this in
+			// the wild with SNMP devices though.
 			err = asn1.SyntaxError{Msg: "indefinite length found (not DER)"}
 			return
 		}
