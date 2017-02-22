@@ -320,14 +320,14 @@ var tagAndLengthData = []tagAndLengthTest{
 	{[]byte{0x00, 0x83, 0x01, 0x00}, false, tagAndLength{}},
 	{[]byte{0x1f, 0x85}, false, tagAndLength{}},
 	{[]byte{0x30, 0x80}, false, tagAndLength{}},
-	// Superfluous zeros in the length should be a accepted.
-	{[]byte{0xa0, 0x82, 0x00, 0xff}, false, tagAndLength{}},
+	// Superfluous zeros in the length should be a accepted (different from DER).
+	{[]byte{0xa0, 0x82, 0x00, 0xff}, true, tagAndLength{2, 0, 0xff, true}},
 	// Lengths up to the maximum size of an int should work.
 	{[]byte{0xa0, 0x84, 0x7f, 0xff, 0xff, 0xff}, true, tagAndLength{2, 0, 0x7fffffff, true}},
 	// Lengths that would overflow an int should be rejected.
 	{[]byte{0xa0, 0x84, 0x80, 0x00, 0x00, 0x00}, false, tagAndLength{}},
-	// Long length form may be used for lengths that fit in short form.
-	{[]byte{0xa0, 0x81, 0x7f}, false, tagAndLength{}},
+	// Long length form may be used for lengths that fit in short form (different from DER).
+	{[]byte{0xa0, 0x81, 0x7f}, true, tagAndLength{2, 0, 0x7f, true}},
 	// Tag numbers which would overflow int32 are rejected. (The value below is 2^31.)
 	{[]byte{0x1f, 0x88, 0x80, 0x80, 0x80, 0x00, 0x00}, false, tagAndLength{}},
 	// Long tag number form may not be used for tags that fit in short form.

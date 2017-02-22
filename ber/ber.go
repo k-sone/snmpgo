@@ -393,16 +393,6 @@ func parseTagAndLength(bytes []byte, initOffset int) (ret tagAndLength, offset i
 			}
 			ret.length <<= 8
 			ret.length |= int(b)
-			if ret.length == 0 {
-				// DER requires that lengths be minimal.
-				err = asn1.StructuralError{Msg: "superfluous leading zeros in length"}
-				return
-			}
-		}
-		// Short lengths must be encoded in short form.
-		if ret.length < 0x80 {
-			err = asn1.StructuralError{Msg: "non-minimal length"}
-			return
 		}
 	}
 
