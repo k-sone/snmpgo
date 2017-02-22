@@ -829,7 +829,7 @@ func setDefaultValue(v reflect.Value, params fieldParameters) (ok bool) {
 	return
 }
 
-// Unmarshal parses the DER-encoded ASN.1 data structure b
+// Unmarshal parses the BER-encoded ASN.1 data structure b
 // and uses the reflect package to fill in an arbitrary value pointed at by val.
 // Because Unmarshal uses the reflect package, the structs
 // being written to must use upper case field names.
