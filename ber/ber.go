@@ -171,7 +171,7 @@ func parseObjectIdentifier(bytes []byte) (s []int, err error) {
 	// According to this packing, value1 can take the values 0, 1 and 2 only.
 	// When value1 = 0 or value1 = 1, then value2 is <= 39. When value1 = 2,
 	// then there are no restrictions on value2.
-	v, offset, err := parseBase128Int(bytes, 0)
+	v, offset, err := _parseBase128Int(bytes, 0)
 	if err != nil {
 		return
 	}
@@ -185,7 +185,7 @@ func parseObjectIdentifier(bytes []byte) (s []int, err error) {
 
 	i := 2
 	for ; offset < len(bytes); i++ {
-		v, offset, err = parseBase128Int(bytes, offset)
+		v, offset, err = _parseBase128Int(bytes, offset)
 		if err != nil {
 			return
 		}
@@ -195,16 +195,9 @@ func parseObjectIdentifier(bytes []byte) (s []int, err error) {
 	return
 }
 
-// parseBase128Int parses a base-128 encoded int from the given offset in the
-// given byte slice. It returns the value and the new offset.
-func parseBase128Int(bytes []byte, initOffset int) (ret, offset int, err error) {
+func _parseBase128Int(bytes []byte, initOffset int) (ret, offset int, err error) {
 	offset = initOffset
 	for shifted := 0; offset < len(bytes); shifted++ {
-		if shifted == 4 {
-			err = asn1.StructuralError{Msg: "base 128 integer too large"}
-			return
-		}
-
 		ret <<= 7
 		b := bytes[offset]
 		ret |= int(b & 0x7f)
@@ -214,6 +207,19 @@ func parseBase128Int(bytes []byte, initOffset int) (ret, offset int, err error) 
 		}
 	}
 	err = asn1.SyntaxError{Msg: "truncated base 128 integer"}
+	return
+}
+
+// parseBase128Int parses a base-128 encoded int from the given offset in the
+// given byte slice. It returns the value and the new offset.
+func parseBase128Int(bytes []byte, initOffset int) (ret, offset int, err error) {
+	ret, offset, err = _parseBase128Int(bytes, initOffset)
+
+	if offset-initOffset >= 4 {
+		err = asn1.StructuralError{Msg: "base 128 integer too large"}
+		return
+	}
+
 	return
 }
 
