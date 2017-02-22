@@ -343,6 +343,7 @@ var tagAndLengthData = []tagAndLengthTest{
 	{[]byte{0xa0, 0x84, 0x7f, 0xff, 0xff, 0xff}, true, tagAndLength{2, 0, 0x7fffffff, true}},
 	// Lengths that would overflow an int should be rejected.
 	{[]byte{0xa0, 0x84, 0x80, 0x00, 0x00, 0x00}, false, tagAndLength{}},
+	{[]byte{0xa0, 0x84, 0x88, 0x90, 0x80, 0x23}, false, tagAndLength{}},
 	// Long length form may be used for lengths that fit in short form (different from DER).
 	{[]byte{0xa0, 0x81, 0x7f}, true, tagAndLength{2, 0, 0x7f, true}},
 	// Tag numbers which would overflow int32 are rejected. (The value below is 2^31.)
