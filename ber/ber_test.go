@@ -379,10 +379,10 @@ func newBool(b bool) *bool { return &b }
 
 var parseFieldParametersTestData []parseFieldParametersTest = []parseFieldParametersTest{
 	{"", fieldParameters{}},
-	{"ia5", fieldParameters{stringType: asn1.TagIA5String}},
-	{"generalized", fieldParameters{timeType: asn1.TagGeneralizedTime}},
-	{"utc", fieldParameters{timeType: asn1.TagUTCTime}},
-	{"printable", fieldParameters{stringType: asn1.TagPrintableString}},
+	{"ia5", fieldParameters{stringType: tagIA5String}},
+	{"generalized", fieldParameters{timeType: tagGeneralizedTime}},
+	{"utc", fieldParameters{timeType: tagUTCTime}},
+	{"printable", fieldParameters{stringType: tagPrintableString}},
 	{"optional", fieldParameters{optional: true}},
 	{"explicit", fieldParameters{explicit: true, tag: new(int)}},
 	{"application", fieldParameters{application: true, tag: new(int)}},
@@ -608,46 +608,5 @@ func TestUnmarshalInvalidUTF8(t *testing.T) {
 		t.Fatal("Successfully unmarshaled invalid UTF-8 data")
 	} else if !strings.Contains(err.Error(), expectedSubstring) {
 		t.Fatalf("Expected error to mention %q but error was %q", expectedSubstring, err.Error())
-	}
-}
-
-func TestMarshalNilValue(t *testing.T) {
-	nilValueTestData := []interface{}{
-		nil,
-		struct{ V interface{} }{},
-	}
-	for i, test := range nilValueTestData {
-		if _, err := Marshal(test); err == nil {
-			t.Fatalf("#%d: successfully marshaled nil value", i)
-		}
-	}
-}
-
-type unexported struct {
-	X int
-	y int
-}
-
-type exported struct {
-	X int
-	Y int
-}
-
-func TestUnexportedStructField(t *testing.T) {
-	want := asn1.StructuralError{Msg: "struct contains unexported fields"}
-
-	_, err := Marshal(unexported{X: 5, y: 1})
-	if err != want {
-		t.Errorf("got %v, want %v", err, want)
-	}
-
-	bs, err := Marshal(exported{X: 5, Y: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var u unexported
-	_, err = Unmarshal(bs, &u)
-	if err != want {
-		t.Errorf("got %v, want %v", err, want)
 	}
 }

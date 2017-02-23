@@ -5,7 +5,6 @@
 package ber
 
 import (
-	"encoding/asn1"
 	"reflect"
 	"strconv"
 	"strings"
@@ -70,15 +69,15 @@ func parseFieldParameters(str string) (ret fieldParameters) {
 				ret.tag = new(int)
 			}
 		case part == "generalized":
-			ret.timeType = asn1.TagGeneralizedTime
+			ret.timeType = tagGeneralizedTime
 		case part == "utc":
-			ret.timeType = asn1.TagUTCTime
+			ret.timeType = tagUTCTime
 		case part == "ia5":
-			ret.stringType = asn1.TagIA5String
+			ret.stringType = tagIA5String
 		case part == "printable":
-			ret.stringType = asn1.TagPrintableString
+			ret.stringType = tagPrintableString
 		case part == "utf8":
-			ret.stringType = asn1.TagUTF8String
+			ret.stringType = tagUTF8String
 		case strings.HasPrefix(part, "default:"):
 			i, err := strconv.ParseInt(part[8:], 10, 64)
 			if err == nil {
@@ -110,33 +109,33 @@ func parseFieldParameters(str string) (ret fieldParameters) {
 func getUniversalType(t reflect.Type) (tagNumber int, isCompound, ok bool) {
 	switch t {
 	case objectIdentifierType:
-		return asn1.TagOID, false, true
+		return tagOID, false, true
 	case bitStringType:
-		return asn1.TagBitString, false, true
+		return tagBitString, false, true
 	case timeType:
-		return asn1.TagUTCTime, false, true
+		return tagUTCTime, false, true
 	case enumeratedType:
-		return asn1.TagEnum, false, true
+		return tagEnum, false, true
 	case bigIntType:
-		return asn1.TagInteger, false, true
+		return tagInteger, false, true
 	}
 	switch t.Kind() {
 	case reflect.Bool:
-		return asn1.TagBoolean, false, true
+		return tagBoolean, false, true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return asn1.TagInteger, false, true
+		return tagInteger, false, true
 	case reflect.Struct:
-		return asn1.TagSequence, true, true
+		return tagSequence, true, true
 	case reflect.Slice:
 		if t.Elem().Kind() == reflect.Uint8 {
-			return asn1.TagOctetString, false, true
+			return tagOctetString, false, true
 		}
 		if strings.HasSuffix(t.Name(), "SET") {
-			return asn1.TagSet, true, true
+			return tagSet, true, true
 		}
-		return asn1.TagSequence, true, true
+		return tagSequence, true, true
 	case reflect.String:
-		return asn1.TagPrintableString, false, true
+		return tagPrintableString, false, true
 	}
 	return 0, false, false
 }
