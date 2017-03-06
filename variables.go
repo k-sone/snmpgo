@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/k-sone/snmpgo/ber"
+	"github.com/geoffgarside/ber"
 )
 
 type Variable interface {
