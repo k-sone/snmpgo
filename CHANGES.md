@@ -1,3 +1,7 @@
+## 3.2.0 (2017/03/11)
+
+- Adds ASN.1 BER Unmarshalling [#16](https://github.com/k-sone/snmpgo/pull/16)
+
 ## 3.1.0 (2017/03/04)
 
 - Fix data races in closing TrapServer and packetTransport types [#13](https://github.com/k-sone/snmpgo/pull/13)
