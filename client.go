@@ -311,6 +311,11 @@ func (s *SNMP) v2trap(pduType PduType, varBinds VarBinds) (err error) {
 	return
 }
 
+func (s *SNMP) SetRequest(varBinds VarBinds) (resp Pdu, err error) {
+	pdu := NewPduWithVarBinds(s.args.Version, SetRequest, varBinds)
+	return s.sendPdu(pdu)
+}
+
 func (s *SNMP) sendPdu(pdu Pdu) (result Pdu, err error) {
 	if err = s.Open(); err != nil {
 		return
