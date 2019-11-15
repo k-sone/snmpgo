@@ -85,6 +85,13 @@ func (t *packetTransport) Close(_ interface{}) error {
 	return nil
 }
 
+// for unit test
+func (t *packetTransport) Conn() net.PacketConn {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+	return t.conn
+}
+
 func newTransport(args *ServerArguments) transport {
 	switch args.Network {
 	case "udp", "udp4", "udp6":

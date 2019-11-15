@@ -46,7 +46,7 @@ func NewUsm() *usm             { return &usm{} }
 // For server
 func ListeningUDPAddress(s *TrapServer) string {
 	for i := 0; i < 12; i++ {
-		if conn := s.transport.(*packetTransport).conn; conn != nil {
+		if conn := s.transport.(*packetTransport).Conn(); conn != nil {
 			return conn.LocalAddr().String()
 		}
 		// XXX Wait until a connection is available, but this code is a kludge
