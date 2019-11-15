@@ -124,6 +124,7 @@ type usm struct {
 	PrivKey         []byte
 	PrivPassword    string
 	PrivProtocol    PrivProtocol
+	BootsTimeMutex  *sync.Mutex
 }
 
 func (u *usm) Identifier() string {
@@ -255,10 +256,13 @@ func (u *usm) ProcessIncomingMessage(recvMsg message) (err error) {
 	switch u.DiscoveryStatus {
 	case remoteReference:
 		if rm.Authentication() {
+			u.BootsTimeMutex.Lock()
 			if err = u.CheckTimeliness(rm.AuthEngineBoots, rm.AuthEngineTime); err != nil {
+				u.BootsTimeMutex.Unlock()
 				return
 			}
 			u.SynchronizeEngineBootsTime(rm.AuthEngineBoots, rm.AuthEngineTime)
+			u.BootsTimeMutex.Unlock()
 		}
 	case discovered:
 		if rm.Authentication() {
@@ -632,6 +636,7 @@ func newSecurityFromEntry(entry *SecurityEntry) security {
 			authEngineId, _ := engineIdToBytes(entry.SecurityEngineId)
 			sec.SetAuthEngineId(authEngineId)
 			sec.DiscoveryStatus = remoteReference
+			sec.BootsTimeMutex = new(sync.Mutex)
 		}
 		return sec
 	default:
