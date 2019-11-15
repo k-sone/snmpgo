@@ -114,7 +114,7 @@ func TestUnmarshalMessageV1(t *testing.T) {
 	if msg == nil {
 		t.Errorf("unmarshalMessage() - message is nil")
 	}
-	if snmpgo.ToMessageV1 == nil {
+	if snmpgo.ToMessageV1(msg) == nil {
 		t.Errorf("unmarshalMessage() - message is not messageV1")
 	}
 }
@@ -142,7 +142,7 @@ func TestUnmarshalMessageV3(t *testing.T) {
 	if msg == nil {
 		t.Errorf("unmarshalMessage() - message is nil")
 	}
-	if snmpgo.ToMessageV3 == nil {
+	if snmpgo.ToMessageV3(msg) == nil {
 		t.Errorf("unmarshalMessage() - message is not messageV3")
 	}
 }
@@ -183,7 +183,7 @@ func TestUnmarshalMessageV1BERPaddedLength(t *testing.T) {
 	if msg == nil {
 		t.Errorf("unmarshalMessage() - message is nil")
 	}
-	if snmpgo.ToMessageV1 == nil {
+	if snmpgo.ToMessageV1(msg) == nil {
 		t.Errorf("unmarshalMessage() - message is not messageV1")
 	}
 }
@@ -208,7 +208,7 @@ func TestUnmarshalMessageV1BERNonMinimalLength(t *testing.T) {
 	if msg == nil {
 		t.Errorf("unmarshalMessage() - message is nil")
 	}
-	if snmpgo.ToMessageV1 == nil {
+	if snmpgo.ToMessageV1(msg) == nil {
 		t.Errorf("unmarshalMessage() - message is not messageV1")
 	}
 }
@@ -238,7 +238,7 @@ func TestUnmarshalMessageV1BERLargeObjectIdentifier(t *testing.T) {
 	if msg == nil {
 		t.Errorf("unmarshalMessage() - message is nil")
 	}
-	if snmpgo.ToMessageV1 == nil {
+	if snmpgo.ToMessageV1(msg) == nil {
 		t.Errorf("unmarshalMessage() - message is not messageV1")
 	}
 }
