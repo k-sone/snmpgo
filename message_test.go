@@ -21,7 +21,7 @@ func TestMessageV1(t *testing.T) {
 	}
 	buf, err := msg.Marshal()
 	if err != nil {
-		t.Fatal("Marshal() : %v", err)
+		t.Fatalf("Marshal() : %v", err)
 	}
 	if !bytes.Equal(expBuf, buf) {
 		t.Errorf("Marshal() - expected [%s], actual [%s]",
@@ -71,7 +71,7 @@ func TestMessageV3(t *testing.T) {
 
 	buf, err := msg.Marshal()
 	if err != nil {
-		t.Fatal("Marshal() : %v", err)
+		t.Fatalf("Marshal() : %v", err)
 	}
 	if !bytes.Equal(expBuf, buf) {
 		t.Errorf("Marshal() - expected [%s], actual [%s]",

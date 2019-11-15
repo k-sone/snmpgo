@@ -256,7 +256,7 @@ func TestUsm(t *testing.T) {
 
 	err = sec.ProcessIncomingMessage(rmsg)
 	if err != nil {
-		t.Error("ProcessIncomingMessage() - has error %v", err)
+		t.Errorf("ProcessIncomingMessage() - has error %v", err)
 	}
 }
 

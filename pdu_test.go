@@ -204,7 +204,7 @@ func TestPduV1(t *testing.T) {
 	}
 	buf, err := pdu.Marshal()
 	if err != nil {
-		t.Fatal("Marshal() : %v", err)
+		t.Fatalf("Marshal() : %v", err)
 	}
 	if !bytes.Equal(expBuf, buf) {
 		t.Errorf("Marshal() - expected [%s], actual [%s]",
@@ -281,7 +281,7 @@ func TestScopedPdu(t *testing.T) {
 	}
 	buf, err := pdu.Marshal()
 	if err != nil {
-		t.Fatal("Marshal() : %v", err)
+		t.Fatalf("Marshal() : %v", err)
 	}
 	if !bytes.Equal(expBuf, buf) {
 		t.Errorf("Marshal() - expected [%s], actual [%s]",
