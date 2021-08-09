@@ -94,7 +94,7 @@ func engineIdToBytes(engineId string) ([]byte, error) {
 	if l := len(b); err != nil || (l < 5 || l > 32) {
 		return nil, &ArgumentError{
 			Value:   engineId,
-			Message: "EngineId must be a hexadecimal string and length is range 5..32",
+			Message: "EngineId must be a hexadecimal string and length is range 10..64",
 		}
 	}
 	return b, nil
