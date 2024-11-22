@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
+	"time"
 	"github.com/geoffgarside/ber"
 )
 
@@ -450,7 +450,9 @@ func NewPduWithOids(ver SNMPVersion, t PduType, oids Oids) (pdu Pdu) {
 func NewPduWithVarBinds(ver SNMPVersion, t PduType, varBinds VarBinds) (pdu Pdu) {
 	pdu = NewPdu(ver, t)
 	for _, v := range varBinds {
+		
 		pdu.AppendVarBind(v.Oid, v.Variable)
+		time.Sleep(200 * time.Millisecond)
 	}
 	return
 }
